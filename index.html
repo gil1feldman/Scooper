@@ -1,0 +1,1163 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scooper Suite - מערכת מאוחדת לניתוח שיח</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+
+    <style>
+        /* --- GLOBAL UNIFIED STYLES --- */
+        body { font-family: 'Heebo', sans-serif; overflow-x: hidden; }
+        .mono { font-family: "IBM Plex Mono", ui-monospace, monospace; }
+        
+        .bg-scooper {
+            background: radial-gradient(1200px 600px at 85% -10%, rgba(236,72,153,0.30), transparent 60%),
+                        radial-gradient(900px 500px at 10% 0%, rgba(168,85,247,0.25), transparent 55%),
+                        linear-gradient(180deg, rgba(15,23,42,1), rgba(2,6,23,1));
+            color: #f1f5f9;
+            min-height: 100vh;
+        }
+        
+        .glass {
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(255,255,255,0.10);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+        }
+        
+        .focus-ring:focus { outline: none; box-shadow: 0 0 0 3px rgba(236,72,153,0.35); }
+        
+        *::-webkit-scrollbar { height: 8px; width: 8px; }
+        *::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 999px; }
+        *::-webkit-scrollbar-track { background: rgba(0,0,0,0.1); border-radius: 999px; }
+
+        .toggle {
+            position: relative; width: 46px; height: 28px; border-radius: 999px;
+            background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2);
+            cursor: pointer; flex-shrink: 0; transition: background 150ms ease;
+        }
+        .toggle[data-on="true"] { background: rgba(236,72,153,0.5); border-color: rgba(236,72,153,0.6); }
+        .toggleKnob {
+            position: absolute; top: 50%; transform: translateY(-50%);
+            width: 22px; height: 22px; border-radius: 999px; background: white;
+            transition: inset-inline-start 150ms ease; inset-inline-start: 3px;
+        }
+        .toggle[data-on="true"] .toggleKnob { inset-inline-start: 21px; }
+
+        .preview-table { table-layout: fixed; width: 100%; border-collapse: separate; border-spacing: 0; }
+        .preview-table th, .preview-table td { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: top; }
+        .preview-cell { cursor: pointer; }
+        .preview-cell:hover { background: rgba(255,255,255,0.08); }
+        .tab-active { background: rgba(255,255,255,0.14); border-color: rgba(255,255,255,0.18); }
+
+        .nav-btn { transition: all 0.2s; }
+        .nav-btn.active { background: linear-gradient(135deg, rgba(236,72,153,0.8) 0%, rgba(139,92,246,0.8) 100%); border-color: transparent; box-shadow: 0 4px 15px rgba(236,72,153,0.3); }
+        .nav-btn:not(.active):hover { background: rgba(255,255,255,0.1); }
+        
+        .main-tab-content { display: none; animation: fadeIn 0.3s ease-in-out; }
+        .main-tab-content.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* --- CLASSIFIER TAB STYLES (Scooper-styled) --- */
+        .cl-steps { display: flex; align-items: center; gap: 0; flex-wrap: wrap; justify-content: center; margin-bottom: 1.5rem; }
+        .cl-step-item {
+            display: flex; align-items: center; gap: 8px;
+            padding: 8px 16px; font-size: 0.8rem; font-weight: 600;
+            color: rgba(255,255,255,0.35); border-bottom: 2px solid transparent;
+            transition: all 0.25s; cursor: default;
+        }
+        .cl-step-item.active { color: #fff; border-bottom-color: rgba(236,72,153,0.8); }
+        .cl-step-num {
+            width: 20px; height: 20px; border-radius: 50%;
+            background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.4);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 0.68rem; font-weight: 700; transition: all 0.25s;
+        }
+        .cl-step-item.active .cl-step-num { background: rgba(236,72,153,0.7); color: #fff; }
+        .cl-step-conn { width: 24px; height: 1px; background: rgba(255,255,255,0.1); }
+
+        .cl-upload-zone {
+            border: 2px dashed rgba(255,255,255,0.15); border-radius: 16px;
+            padding: 40px 20px; text-align: center; cursor: pointer;
+            transition: all 0.25s; position: relative; overflow: hidden;
+            background: rgba(255,255,255,0.03);
+        }
+        .cl-upload-zone:hover, .cl-upload-zone.drag-over {
+            border-color: rgba(236,72,153,0.5); background: rgba(236,72,153,0.05);
+        }
+        .cl-upload-zone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+
+        .cl-dict-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px; margin-bottom: 14px; }
+        .cl-category {
+            background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 12px; padding: 14px; position: relative;
+            border-top: 3px solid transparent;
+        }
+        .cl-cat-header { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+        .cl-cat-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+        .cl-cat-title {
+            flex: 1; background: transparent; border: none;
+            border-bottom: 1.5px solid rgba(255,255,255,0.1);
+            color: #fff; font-family: 'Heebo', sans-serif;
+            font-size: 0.88rem; font-weight: 700; padding: 2px 0;
+            text-align: right; outline: none; transition: border-color 0.2s;
+        }
+        .cl-cat-title:focus { border-bottom-color: rgba(236,72,153,0.6); }
+        .cl-cat-title::placeholder { color: rgba(255,255,255,0.3); }
+
+        .cl-word-tag {
+            display: inline-flex; align-items: center; gap: 4px;
+            background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.12);
+            border-radius: 5px; padding: 3px 8px 3px 6px;
+            font-size: 0.76rem; margin: 2px; color: #e2e8f0; font-weight: 500;
+            transition: background 0.15s;
+        }
+        .cl-word-tag:hover { background: rgba(255,255,255,0.12); }
+        .cl-word-del { cursor: pointer; color: rgba(255,255,255,0.35); font-size: 0.65rem; line-height: 1; }
+        .cl-word-del:hover { color: rgba(251,113,133,0.9); }
+
+        .cl-word-add-row { display: flex; gap: 6px; margin-top: 8px; }
+        .cl-word-input {
+            flex: 1; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 8px; color: #fff; font-family: 'Heebo', sans-serif;
+            font-size: 0.78rem; padding: 5px 10px; text-align: right; outline: none;
+            transition: border-color 0.2s;
+        }
+        .cl-word-input:focus { border-color: rgba(236,72,153,0.5); }
+        .cl-word-input::placeholder { color: rgba(255,255,255,0.25); }
+
+        .cl-del-cat-btn {
+            position: absolute; top: 8px; left: 8px;
+            background: none; border: none; color: rgba(255,255,255,0.2);
+            cursor: pointer; font-size: 0.7rem; padding: 2px; transition: color 0.2s; line-height: 1;
+        }
+        .cl-del-cat-btn:hover { color: rgba(251,113,133,0.8); }
+
+        .cl-col-chip {
+            display: inline-flex; align-items: center; gap: 6px;
+            background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 8px; padding: 6px 14px; cursor: pointer;
+            font-size: 0.82rem; transition: all 0.2s; user-select: none;
+            color: rgba(255,255,255,0.45); font-weight: 500;
+        }
+        .cl-col-chip:hover { background: rgba(255,255,255,0.1); color: #fff; }
+        .cl-col-chip.selected { background: rgba(236,72,153,0.2); border-color: rgba(236,72,153,0.4); color: #fff; }
+
+        .cl-add-cat-btn {
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+            background: transparent; border: 2px dashed rgba(255,255,255,0.12);
+            border-radius: 12px; color: rgba(255,255,255,0.35);
+            cursor: pointer; font-family: 'Heebo', sans-serif; font-size: 0.85rem;
+            padding: 12px; width: 100%; transition: all 0.2s;
+        }
+        .cl-add-cat-btn:hover { border-color: rgba(236,72,153,0.4); color: rgba(255,255,255,0.7); background: rgba(236,72,153,0.05); }
+
+        .cl-table-wrap { overflow-x: auto; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); max-height: 380px; overflow-y: auto; }
+        .cl-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+        .cl-table th { background: rgba(0,0,0,0.5); padding: 9px 14px; text-align: right; font-weight: 600; color: rgba(255,255,255,0.6); border-bottom: 1px solid rgba(255,255,255,0.08); white-space: nowrap; }
+        .cl-table td { padding: 7px 14px; border-bottom: 1px solid rgba(255,255,255,0.05); color: #e2e8f0; vertical-align: top; }
+        .cl-table tr:last-child td { border-bottom: none; }
+        .cl-table tr:hover td { background: rgba(255,255,255,0.04); }
+        .cl-table th.cat-col { color: rgba(236,72,153,0.9); background: rgba(0,0,0,0.6); }
+
+        .cl-badge-yes { display: inline-block; padding: 2px 10px; border-radius: 4px; font-size: 0.7rem; font-weight: 700; background: rgba(52,211,153,0.15); color: #6ee7b7; border: 1px solid rgba(52,211,153,0.25); }
+        .cl-badge-no  { display: inline-block; padding: 2px 10px; border-radius: 4px; font-size: 0.7rem; font-weight: 700; background: rgba(255,255,255,0.05); color: rgba(255,255,255,0.25); border: 1px solid rgba(255,255,255,0.08); }
+        .cl-badge-phrase { display: inline-block; padding: 2px 10px; border-radius: 4px; font-size: 0.7rem; font-weight: 700; background: rgba(139,92,246,0.2); color: #c4b5fd; border: 1px solid rgba(139,92,246,0.3); }
+
+        .cl-stat-box { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; padding: 10px 18px; border-top: 3px solid rgba(236,72,153,0.4); }
+        .cl-stat-num { font-size: 1.5rem; font-weight: 800; color: #fff; line-height: 1.1; font-family: 'IBM Plex Mono', monospace; }
+        .cl-stat-label { color: rgba(255,255,255,0.4); font-size: 0.7rem; margin-top: 2px; }
+
+        .cl-section-hidden { display: none; }
+
+        .cl-status { text-align: center; padding: 10px 16px; border-radius: 10px; font-size: 0.83rem; font-weight: 500; margin-top: 12px; }
+        .cl-status.info    { background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.7); border: 1px solid rgba(255,255,255,0.1); }
+        .cl-status.success { background: rgba(52,211,153,0.1); color: #6ee7b7; border: 1px solid rgba(52,211,153,0.2); }
+        .cl-status.error   { background: rgba(251,113,133,0.1); color: #fda4af; border: 1px solid rgba(251,113,133,0.2); }
+
+        /* Matrix */
+        .cl-matrix th { background: rgba(0,0,0,0.6); color: rgba(255,255,255,0.55); font-size: 0.75rem; white-space: nowrap; padding: 8px 12px; text-align: center; }
+        .cl-matrix th.row-head { text-align: right; }
+        .cl-matrix td { text-align: center; font-size: 0.8rem; font-weight: 600; padding: 8px 10px; min-width: 52px; transition: background 0.15s; border-bottom: 1px solid rgba(255,255,255,0.05); }
+        .cl-matrix td.diag { background: rgba(236,72,153,0.15); color: rgba(236,72,153,0.9); font-weight: 800; }
+        .cl-matrix tr:hover td:not(.diag) { background: rgba(255,255,255,0.04); }
+    </style>
+</head>
+<body class="bg-scooper">
+
+    <header class="fixed top-0 inset-x-0 z-50">
+        <div class="mx-auto max-w-7xl px-4 py-3">
+            <div class="glass rounded-2xl px-4 py-3 flex flex-col md:flex-row gap-4 items-center justify-between shadow-lg">
+                <div class="flex items-center gap-3">
+                    <div class="h-10 w-10 rounded-xl bg-gradient-to-br from-pink-500/80 to-purple-600/80 flex items-center justify-center border border-white/20">
+                        <i data-lucide="layers" class="text-white w-5 h-5"></i>
+                    </div>
+                    <div>
+                        <div class="text-lg font-bold leading-tight text-white">Scooper Suite</div>
+                        <div class="text-xs text-pink-200/80">זרם עבודה מלא מחיפוש עד פרומפט</div>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-1 bg-black/20 p-1 rounded-xl border border-white/5 flex-wrap justify-center">
+                    <button onclick="switchTab('tab-query')" id="nav-tab-query" class="nav-btn active rounded-lg px-3 py-2 text-sm font-semibold flex items-center gap-2 text-white">
+                        <span class="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center text-[10px]">1</span> בניית חיפוש
+                    </button>
+                    <button onclick="switchTab('tab-clean')" id="nav-tab-clean" class="nav-btn rounded-lg px-3 py-2 text-sm font-semibold flex items-center gap-2 text-slate-300">
+                        <span class="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center text-[10px]">2</span> ניקוי נתונים
+                    </button>
+                    <button onclick="switchTab('tab-classifier')" id="nav-tab-classifier" class="nav-btn rounded-lg px-3 py-2 text-sm font-semibold flex items-center gap-2 text-slate-300">
+                        <span class="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center text-[10px]">3</span> מסווג טקסט
+                    </button>
+                    <button onclick="switchTab('tab-prompt')" id="nav-tab-prompt" class="nav-btn rounded-lg px-3 py-2 text-sm font-semibold flex items-center gap-2 text-slate-300">
+                        <span class="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center text-[10px]">4</span> מחולל פרומפטים
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <div class="h-28 md:h-24"></div>
+
+    <!-- ===== TAB 1: QUERY BUILDER ===== -->
+    <div id="tab-query" class="main-tab-content active max-w-6xl mx-auto px-4 pb-10">
+        <div class="glass rounded-3xl p-6 shadow-xl mb-6">
+            <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                <div>
+                    <h1 class="text-2xl font-bold tracking-tight text-white">Talkwalker Query Builder</h1>
+                    <p class="text-slate-300 text-sm mt-1">קבוצות מילים (OR) + תחיליות + חיבור בין קבוצות עם AND/OR או קרבה.</p>
+                </div>
+                <div class="flex flex-wrap gap-2">
+                    <button id="tw_btnLoadExample" class="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold bg-white/10 hover:bg-white/20 border border-white/10 transition"><i data-lucide="sparkles" class="w-4 h-4"></i> דוגמה</button>
+                    <button id="tw_btnReset" class="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold bg-white/5 hover:bg-white/15 border border-white/10 transition text-pink-300"><i data-lucide="rotate-ccw" class="w-4 h-4"></i> איפוס</button>
+                </div>
+            </div>
+
+            <div class="mt-5 grid grid-cols-1 lg:grid-cols-3 gap-4">
+                <div class="rounded-2xl border border-white/10 bg-white/5 p-4">
+                    <div class="text-xs font-bold text-slate-400">חיבור בין קבוצות (גלובלי)</div>
+                    <select id="tw_globalConnector" class="focus-ring mt-2 w-full rounded-xl border border-white/10 bg-black/40 text-white px-3 py-2 text-sm">
+                        <option value="AND">AND</option><option value="OR" selected>OR</option><option value="NEAR">NEAR/x</option><option value="ONEAR">ONEAR/x</option><option value="SENTENCE">SENTENCE</option><option value="OSENTENCE">OSENTENCE</option>
+                    </select>
+                    <div id="tw_globalDistanceWrap" class="hidden mt-2">
+                        <label class="text-xs font-bold text-slate-400">מרחק (x)</label>
+                        <input id="tw_globalDistance" type="number" min="1" max="100" value="15" class="focus-ring mt-1 w-full rounded-xl border border-white/10 bg-black/40 text-white px-3 py-2 text-sm" />
+                    </div>
+                    <div class="mt-4 flex items-center justify-between gap-3 rounded-xl border border-white/5 bg-black/20 p-3">
+                        <div>
+                            <div class="text-sm font-bold text-white">מצב מתקדם</div>
+                            <div class="text-xs text-slate-400">Connector לכל מעבר</div>
+                        </div>
+                        <div id="tw_advancedToggle" class="toggle" data-on="false"><div class="toggleKnob"></div></div>
+                    </div>
+                </div>
+
+                <div class="rounded-2xl border border-white/10 bg-white/5 p-4 lg:col-span-2">
+                    <div class="flex items-start justify-between gap-4">
+                        <div class="text-xs font-bold text-slate-400">תחיליות (Prefixes)</div>
+                        <div class="flex gap-2">
+                            <button id="tw_btnToggleDedupe" class="inline-flex items-center gap-1 rounded-xl px-3 py-1.5 text-xs font-semibold bg-white/10 hover:bg-white/20 border border-white/10 transition">
+                                <i data-lucide="filter" class="w-3 h-3"></i> Dedupe <span id="tw_dedupeBadge" class="hidden text-[10px] bg-pink-500/30 text-pink-200 px-1 rounded ml-1">ON</span>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="mt-3 flex flex-wrap gap-2" id="tw_prefixChips"></div>
+                    <div class="mt-4 flex gap-2">
+                        <input id="tw_prefixInput" class="focus-ring w-full rounded-xl border border-white/10 bg-black/40 text-white px-3 py-2 text-sm" placeholder='לדוגמה: ו  |  ב (בלי מירכאות)' />
+                        <button id="tw_btnSavePrefix" class="rounded-xl px-4 py-2 text-sm font-bold bg-pink-600/80 text-white hover:bg-pink-500 transition border border-pink-400/30">הוסף</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <section class="lg:col-span-2 glass rounded-3xl p-5 shadow-xl">
+                <div class="flex items-center justify-between mb-4">
+                    <div>
+                        <h2 class="text-lg font-bold text-white">קבוצות מילים</h2>
+                        <p class="text-xs text-slate-400 mt-1">גרשיים (") מוחלפים אוטומטית בסימן שאלה (?) למניעת שגיאות ב-Talkwalker.</p>
+                    </div>
+                    <button id="tw_btnAddGroup" class="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-bold bg-gradient-to-l from-indigo-500/80 to-cyan-500/80 text-white hover:opacity-90 transition">
+                        <i data-lucide="layers" class="w-4 h-4"></i> הוסף קבוצה
+                    </button>
+                </div>
+                <div id="tw_groupsWrap" class="space-y-4"></div>
+                <div id="tw_advancedConnectorsWrap" class="mt-4 hidden rounded-2xl border border-white/10 bg-white/5 p-4">
+                    <div class="text-sm font-bold text-white mb-3">חיבורים בין קבוצות (מצב מתקדם)</div>
+                    <div id="tw_advancedConnectorsList" class="space-y-2"></div>
+                </div>
+                <div class="mt-4 rounded-xl border border-white/10 bg-white/5 p-4 flex items-center justify-between">
+                    <div class="text-xs text-slate-300">בדיקת תקינות שאילתה לפני העתקה.</div>
+                    <button id="tw_btnValidate" class="inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-semibold bg-white/10 hover:bg-white/20 border border-white/10 text-white transition"><i data-lucide="shield-check" class="w-4 h-4"></i> בדוק</button>
+                </div>
+                <div id="tw_validationMsg" class="mt-3 hidden text-sm"></div>
+            </section>
+
+            <aside class="glass rounded-3xl p-5 shadow-xl flex flex-col">
+                <h2 class="text-lg font-bold text-white mb-4">פלט השאילתה</h2>
+                <div class="grid grid-cols-2 gap-2 mb-4">
+                    <div class="rounded-xl bg-white/5 border border-white/10 p-2 text-center">
+                        <div class="text-[10px] text-slate-400">קבוצות</div>
+                        <div id="tw_statGroups" class="text-lg font-bold text-white">0</div>
+                    </div>
+                    <div class="rounded-xl bg-white/5 border border-white/10 p-2 text-center">
+                        <div class="text-[10px] text-slate-400">מילים נקיות</div>
+                        <div id="tw_statWords" class="text-lg font-bold text-white">0</div>
+                    </div>
+                    <div class="rounded-xl bg-white/5 border border-white/10 p-2 text-center">
+                        <div class="text-[10px] text-slate-400">תחיליות</div>
+                        <div id="tw_statPrefixes" class="text-lg font-bold text-white">0</div>
+                    </div>
+                    <div class="rounded-xl bg-white/5 border border-white/10 p-2 text-center">
+                        <div class="text-[10px] text-slate-400">תווים בפלט</div>
+                        <div id="tw_statChars" class="text-lg font-bold text-white">0</div>
+                    </div>
+                </div>
+                <div class="flex-grow flex flex-col rounded-2xl border border-white/10 bg-black/40 p-4 relative">
+                    <div class="flex items-center justify-between mb-2">
+                        <div class="text-xs font-bold text-slate-400">Search Query</div>
+                        <div class="flex gap-2">
+                            <button id="tw_btnCopy" class="rounded-lg p-1.5 bg-white/10 hover:bg-white/20 text-white transition" title="העתק"><i data-lucide="copy" class="w-4 h-4"></i></button>
+                            <button id="tw_btnDownload" class="rounded-lg p-1.5 bg-white/10 hover:bg-white/20 text-white transition" title="הורד txt"><i data-lucide="download" class="w-4 h-4"></i></button>
+                        </div>
+                    </div>
+                    <pre id="tw_output" class="mono text-xs leading-relaxed text-pink-100/90 whitespace-pre-wrap break-words flex-grow overflow-y-auto max-h-[300px]"></pre>
+                    <div id="tw_copyToast" class="absolute bottom-4 left-4 right-4 hidden rounded-xl bg-emerald-500/90 text-white px-3 py-2 text-xs text-center font-bold">הועתק ללוח!</div>
+                    <div id="tw_warnToast" class="absolute bottom-4 left-4 right-4 hidden rounded-xl bg-amber-500/90 text-white px-3 py-2 text-xs text-center font-bold">הועתק! שים לב לחריגת תווים מומלצת.</div>
+                </div>
+                <div id="tw_statStatus" class="mt-2 text-center text-xs font-bold"></div>
+            </aside>
+        </div>
+    </div>
+
+    <!-- ===== TAB 2: DATA CLEANING ===== -->
+    <div id="tab-clean" class="main-tab-content max-w-6xl mx-auto px-4 pb-14">
+        <section class="glass rounded-3xl p-5 md:p-7 shadow-xl">
+            <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+                <div class="max-w-2xl">
+                    <h1 class="text-2xl md:text-3xl font-bold tracking-tight text-white">סינון פוסטים מובילים (ללא Grok)</h1>
+                    <p class="mt-2 text-slate-300 text-sm">המערכת מסירה אוטומטית פוסטים שנכתבו ע"י Grok ובוחרת את הטובים ביותר לפי משקולות.</p>
+                </div>
+                <div class="flex flex-col gap-2 w-full md:w-auto">
+                    <input id="sc_fileInput" type="file" accept=".xlsx,.xls" class="focus-ring block w-full md:w-80 rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-white/10 file:px-3 file:py-1 file:text-white hover:file:bg-white/20 cursor-pointer text-slate-300" />
+                </div>
+            </div>
+            <div class="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="glass rounded-2xl p-4 border border-white/5">
+                    <div class="text-sm font-bold text-white mb-3">הגדרות סף ומשקולות</div>
+                    <div class="space-y-3 text-sm text-slate-300">
+                        <div class="flex items-center justify-between gap-3">
+                            <label class="font-semibold">יעד פוסטים כולל</label>
+                            <input id="sc_totalTargetInput" type="number" min="1" value="500" class="focus-ring w-24 rounded-xl bg-black/40 border border-white/10 px-2 py-1 text-center text-white mono" />
+                        </div>
+                        <div class="flex items-center justify-between gap-3">
+                            <label class="font-semibold">משקל Engagement</label>
+                            <div class="flex items-center gap-1">
+                                <input id="sc_engPctInput" type="number" min="0" max="100" value="50" class="focus-ring w-16 rounded-xl bg-black/40 border border-white/10 px-2 py-1 text-center text-white mono" /> %
+                            </div>
+                        </div>
+                        <div class="rounded-xl bg-black/20 p-2 text-center mt-2 border border-white/5">
+                            <div class="text-xs text-slate-400">יחולק בפועל (לפני Dedupe):</div>
+                            <div class="mt-1"><span id="sc_quotaEngText" class="text-white font-bold mono">250</span> Eng | <span id="sc_quotaOtherText" class="text-white font-bold mono">250</span> Reach</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="glass rounded-2xl p-4 md:col-span-2 border border-white/5">
+                    <div class="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-4">
+                        <div>
+                            <div class="text-sm font-bold text-white">סטטוס תהליך</div>
+                            <div id="sc_statusText" class="text-sm text-pink-300 mt-1">ממתין לקובץ Excel…</div>
+                            <div id="sc_errorBox" class="hidden mt-2 text-xs text-rose-200 bg-rose-500/20 p-2 rounded-lg border border-rose-500/30"></div>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <button id="sc_btnExtract" disabled class="focus-ring rounded-xl px-4 py-2 text-sm font-bold bg-gradient-to-l from-pink-500/80 to-purple-600/80 text-white border border-white/10 disabled:opacity-30 disabled:cursor-not-allowed hover:opacity-100 transition">נקה Grok וחלץ</button>
+                            <button id="sc_btnDownload" disabled class="focus-ring rounded-xl px-4 py-2 text-sm font-bold bg-white/10 text-white border border-white/10 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-white/20 transition">הורד Excel נקי</button>
+                            <button id="sc_btnReset" class="focus-ring rounded-xl px-3 py-2 text-sm font-bold bg-transparent border border-white/10 text-slate-400 hover:text-white transition" title="איפוס"><i data-lucide="rotate-ccw" class="w-4 h-4"></i></button>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-3 gap-3">
+                        <div class="rounded-xl bg-black/20 border border-white/5 p-3 text-center">
+                            <div class="text-[10px] text-slate-400 uppercase tracking-wider">סה"כ שורות בקובץ</div>
+                            <div id="sc_kpiTotal" class="text-xl font-bold text-white mono mt-1">‐</div>
+                        </div>
+                        <div class="rounded-xl bg-black/20 border border-white/5 p-3 text-center">
+                            <div class="text-[10px] text-slate-400 uppercase tracking-wider">נבחרו (נקיות מ-Grok)</div>
+                            <div id="sc_kpiSelected" class="text-xl font-bold text-white mono mt-1">‐</div>
+                        </div>
+                        <div class="rounded-xl bg-black/20 border border-white/5 p-3 text-center">
+                            <div class="text-[10px] text-slate-400 uppercase tracking-wider">כפילויות שנמנעו</div>
+                            <div id="sc_kpiDedup" class="text-xl font-bold text-white mono mt-1">‐</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+        <section class="mt-6 glass rounded-3xl p-5 shadow-xl">
+            <div class="flex items-center justify-between mb-4">
+                <div>
+                    <h2 class="text-lg font-bold text-white">תצוגה מקדימה <span class="text-xs font-normal text-slate-400">(20 המובילים)</span></h2>
+                    <div class="text-[10px] text-slate-400 mt-1" id="sc_previewMeta">עמודות: ‐</div>
+                </div>
+                <div class="flex items-center gap-2 bg-black/20 p-1 rounded-lg border border-white/5">
+                    <button id="sc_tabEng" class="rounded px-3 py-1.5 text-xs font-bold tab-active text-white transition">Top Engagement</button>
+                    <button id="sc_tabOther" class="rounded px-3 py-1.5 text-xs font-bold text-slate-400 hover:text-white transition">Top Reach</button>
+                </div>
+            </div>
+            <div class="overflow-y-auto max-h-[400px] rounded-xl border border-white/10 bg-black/40">
+                <table class="preview-table text-left w-full text-slate-200">
+                    <thead class="sticky top-0 bg-slate-900 border-b border-white/10 shadow"><tr id="sc_previewThead"></tr></thead>
+                    <tbody id="sc_previewTbody" class="divide-y divide-white/5"></tbody>
+                </table>
+            </div>
+        </section>
+    </div>
+
+    <!-- ===== TAB 3: TEXT CLASSIFIER ===== -->
+    <div id="tab-classifier" class="main-tab-content max-w-6xl mx-auto px-4 pb-10">
+
+        <div class="glass rounded-3xl p-6 shadow-xl mb-6">
+            <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
+                <div>
+                    <h1 class="text-2xl font-bold tracking-tight text-white">מסווג טקסט</h1>
+                    <p class="text-slate-300 text-sm mt-1">טען קובץ Excel, הגדר מילון קטגוריות, ובחר עמודות חיפוש וייצוא.</p>
+                </div>
+            </div>
+
+            <!-- Steps indicator -->
+            <div class="cl-steps">
+                <div class="cl-step-item active" id="cl_pill1"><span class="cl-step-num">1</span> טעינת קובץ</div>
+                <div class="cl-step-conn"></div>
+                <div class="cl-step-item" id="cl_pill2"><span class="cl-step-num">2</span> מילון</div>
+                <div class="cl-step-conn"></div>
+                <div class="cl-step-item" id="cl_pill3"><span class="cl-step-num">3</span> עמודות חיפוש</div>
+                <div class="cl-step-conn"></div>
+                <div class="cl-step-item" id="cl_pill4"><span class="cl-step-num">4</span> עמודות ייצוא</div>
+                <div class="cl-step-conn"></div>
+                <div class="cl-step-item" id="cl_pill5"><span class="cl-step-num">5</span> ייצוא</div>
+            </div>
+        </div>
+
+        <!-- STEP 1: Upload -->
+        <div class="glass rounded-3xl p-6 shadow-xl mb-4" id="cl_step1">
+            <div class="flex items-center gap-3 mb-4">
+                <div class="h-8 w-8 rounded-lg bg-gradient-to-br from-pink-500/60 to-purple-600/60 flex items-center justify-center">
+                    <i data-lucide="folder-open" class="text-white w-4 h-4"></i>
+                </div>
+                <h2 class="text-base font-bold text-white">שלב 1 — טעינת קובץ</h2>
+                <span class="text-[10px] font-bold text-pink-300/70 uppercase tracking-widest mr-auto">STEP 1</span>
+            </div>
+            <div class="cl-upload-zone" id="cl_uploadZone">
+                <input type="file" id="cl_fileInput" accept=".xlsx,.xlsm,.xls,.csv">
+                <i data-lucide="table-2" class="w-10 h-10 text-pink-300/40 mx-auto mb-3"></i>
+                <p class="text-slate-400 text-sm">גרור לכאן קובץ Excel או CSV, או לחץ לבחירה</p>
+                <div class="text-pink-200 font-bold text-sm mt-2" id="cl_uploadedName"></div>
+            </div>
+            <div id="cl_uploadStatus" class="cl-status info" style="display:none"></div>
+        </div>
+
+        <!-- STEP 2: Dictionary -->
+        <div class="glass rounded-3xl p-6 shadow-xl mb-4 cl-section-hidden" id="cl_step2">
+            <div class="flex items-center gap-3 mb-4">
+                <div class="h-8 w-8 rounded-lg bg-gradient-to-br from-pink-500/60 to-purple-600/60 flex items-center justify-center">
+                    <i data-lucide="book-open" class="text-white w-4 h-4"></i>
+                </div>
+                <h2 class="text-base font-bold text-white">שלב 2 — מילון סיווג</h2>
+                <span class="text-[10px] font-bold text-pink-300/70 uppercase tracking-widest mr-auto">STEP 2</span>
+            </div>
+            <p class="text-slate-400 text-sm mb-4">כל קטגוריה מכילה כותרת וביטויי חיפוש. הפרד ביטויים בפסיק — כל ביטוי יחופש כמחרוזת שלמה (כולל צירופי מילים).</p>
+            <div class="cl-dict-grid" id="cl_dictGrid"></div>
+            <button class="cl-add-cat-btn" onclick="cl_addCategory()">＋ הוסף קטגוריה</button>
+            <div class="flex justify-between items-center mt-4 pt-4 border-t border-white/10">
+                <button onclick="cl_clearAllCategories()" class="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold bg-white/5 hover:bg-white/10 border border-white/10 text-slate-400 hover:text-white transition">נקה הכל</button>
+                <button onclick="cl_goToStep3()" class="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-bold bg-gradient-to-l from-pink-500/80 to-purple-600/80 text-white hover:opacity-90 transition">המשך ←</button>
+            </div>
+        </div>
+
+        <!-- STEP 3: Search columns -->
+        <div class="glass rounded-3xl p-6 shadow-xl mb-4 cl-section-hidden" id="cl_step3">
+            <div class="flex items-center gap-3 mb-4">
+                <div class="h-8 w-8 rounded-lg bg-gradient-to-br from-pink-500/60 to-purple-600/60 flex items-center justify-center">
+                    <i data-lucide="search" class="text-white w-4 h-4"></i>
+                </div>
+                <h2 class="text-base font-bold text-white">שלב 3 — עמודות חיפוש</h2>
+                <span class="text-[10px] font-bold text-pink-300/70 uppercase tracking-widest mr-auto">STEP 3</span>
+            </div>
+            <p class="text-slate-400 text-sm mb-4">באילו עמודות לחפש את ביטויי המילון? בחר רק עמודות טקסטואליות רלוונטיות.</p>
+            <div class="flex flex-wrap gap-2" id="cl_searchColGrid"></div>
+            <div class="flex justify-between items-center mt-4 pt-4 border-t border-white/10">
+                <div class="flex gap-2">
+                    <button onclick="cl_selectAllSearchCols()" class="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold bg-white/5 hover:bg-white/10 border border-white/10 text-slate-400 hover:text-white transition">בחר הכל</button>
+                    <button onclick="cl_deselectAllSearchCols()" class="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold bg-white/5 hover:bg-white/10 border border-white/10 text-slate-400 hover:text-white transition">נקה בחירה</button>
+                </div>
+                <button onclick="cl_goToStep4()" class="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-bold bg-gradient-to-l from-pink-500/80 to-purple-600/80 text-white hover:opacity-90 transition">המשך ←</button>
+            </div>
+        </div>
+
+        <!-- STEP 4: Export columns -->
+        <div class="glass rounded-3xl p-6 shadow-xl mb-4 cl-section-hidden" id="cl_step4">
+            <div class="flex items-center gap-3 mb-4">
+                <div class="h-8 w-8 rounded-lg bg-gradient-to-br from-pink-500/60 to-purple-600/60 flex items-center justify-center">
+                    <i data-lucide="columns" class="text-white w-4 h-4"></i>
+                </div>
+                <h2 class="text-base font-bold text-white">שלב 4 — בחירת עמודות לייצוא</h2>
+                <span class="text-[10px] font-bold text-pink-300/70 uppercase tracking-widest mr-auto">STEP 4</span>
+            </div>
+            <p class="text-slate-400 text-sm mb-4">בחר אילו עמודות מהקובץ המקורי לכלול בפלט (עמודות הסיווג יתווספו אוטומטית).</p>
+            <div class="flex flex-wrap gap-2" id="cl_colGrid"></div>
+            <div class="flex justify-between items-center mt-4 pt-4 border-t border-white/10">
+                <div class="flex gap-2">
+                    <button onclick="cl_selectAllCols()" class="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold bg-white/5 hover:bg-white/10 border border-white/10 text-slate-400 hover:text-white transition">בחר הכל</button>
+                    <button onclick="cl_deselectAllCols()" class="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold bg-white/5 hover:bg-white/10 border border-white/10 text-slate-400 hover:text-white transition">נקה בחירה</button>
+                </div>
+                <button onclick="cl_goToStep5()" class="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-bold bg-gradient-to-l from-pink-500/80 to-purple-600/80 text-white hover:opacity-90 transition">המשך ←</button>
+            </div>
+        </div>
+
+        <!-- STEP 5: Preview + Export -->
+        <div class="glass rounded-3xl p-6 shadow-xl mb-4 cl-section-hidden" id="cl_step5">
+            <div class="flex items-center gap-3 mb-4">
+                <div class="h-8 w-8 rounded-lg bg-gradient-to-br from-pink-500/60 to-purple-600/60 flex items-center justify-center">
+                    <i data-lucide="check-circle" class="text-white w-4 h-4"></i>
+                </div>
+                <h2 class="text-base font-bold text-white">שלב 5 — תצוגה מקדימה וייצוא</h2>
+                <span class="text-[10px] font-bold text-pink-300/70 uppercase tracking-widest mr-auto">STEP 5</span>
+            </div>
+
+            <div class="flex flex-wrap gap-3 mb-4" id="cl_statRow"></div>
+
+            <div class="flex items-center gap-4 flex-wrap mb-4 p-3 rounded-xl bg-white/5 border border-white/10">
+                <span class="text-sm font-semibold text-slate-300">פורמט עמודות סיווג:</span>
+                <label class="flex items-center gap-2 cursor-pointer text-sm text-slate-300">
+                    <input type="radio" name="cl_outputMode" value="binary" checked onchange="cl_outputMode='binary'">
+                    <span>0 / 1</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer text-sm text-slate-300">
+                    <input type="radio" name="cl_outputMode" value="phrase" onchange="cl_outputMode='phrase'">
+                    <span>ביטוי שנמצא / ריק</span>
+                </label>
+            </div>
+
+            <div class="cl-table-wrap mb-4">
+                <table class="cl-table" id="cl_previewTable"></table>
+            </div>
+
+            <div class="flex flex-wrap gap-3 justify-center">
+                <button onclick="cl_runClassification()" class="inline-flex items-center gap-2 rounded-xl px-6 py-2.5 text-sm font-bold bg-gradient-to-l from-pink-500/80 to-purple-600/80 text-white hover:opacity-90 transition border border-white/10">
+                    <i data-lucide="play" class="w-4 h-4"></i> הרץ סיווג
+                </button>
+                <button id="cl_exportBtn" onclick="cl_exportExcel()" class="cl-section-hidden inline-flex items-center gap-2 rounded-xl px-6 py-2.5 text-sm font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30 transition">
+                    <i data-lucide="download" class="w-4 h-4"></i> הורד Excel
+                </button>
+            </div>
+            <div id="cl_resultStatus" class="cl-status info" style="display:none"></div>
+        </div>
+
+        <!-- MATRIX -->
+        <div class="glass rounded-3xl p-6 shadow-xl cl-section-hidden" id="cl_matrixCard">
+            <div class="flex items-center gap-3 mb-4">
+                <div class="h-8 w-8 rounded-lg bg-gradient-to-br from-indigo-500/60 to-cyan-600/60 flex items-center justify-center">
+                    <i data-lucide="grid" class="text-white w-4 h-4"></i>
+                </div>
+                <h2 class="text-base font-bold text-white">מטריצת קשרים בין קטגוריות</h2>
+                <span class="text-[10px] font-bold text-cyan-300/70 uppercase tracking-widest mr-auto">CO-OCCURRENCE</span>
+            </div>
+            <p class="text-slate-400 text-sm mb-4">כמה שורות מכילות גם קטגוריה א׳ וגם קטגוריה ב׳ במקביל. האלכסון מציג סך ההיטים לכל קטגוריה.</p>
+            <div class="cl-table-wrap" id="cl_matrixWrap"></div>
+        </div>
+    </div>
+
+    <!-- ===== TAB 4: PROMPT GENERATOR ===== -->
+    <div id="tab-prompt" class="main-tab-content max-w-7xl mx-auto px-4 pb-10">
+        <div class="glass rounded-3xl overflow-hidden flex flex-col md:flex-row shadow-xl border border-white/10">
+            <div class="w-full md:w-5/12 p-6 md:p-8 border-l border-white/10 overflow-y-auto max-h-[80vh] bg-white/5">
+                <h2 class="text-2xl font-bold mb-6 text-transparent bg-clip-text bg-gradient-to-l from-pink-400 to-purple-400">הגדרות הניתוח</h2>
+                <div class="space-y-5">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-400 mb-1">נושא הניתוח המרכזי</label>
+                        <input type="text" id="pr_topic" value="משבר השירות בחברת X" class="w-full p-2.5 bg-black/40 border border-white/10 rounded-xl text-white focus-ring text-sm" oninput="pr_generatePrompt()">
+                    </div>
+                    <div class="flex gap-4">
+                        <div class="w-1/2">
+                            <label class="block text-xs font-bold text-slate-400 mb-1">תפקיד / פרסונה</label>
+                            <input type="text" id="pr_role" value="אנליסט דאטה וחוקר שיח ציבורי" class="w-full p-2.5 bg-black/40 border border-white/10 rounded-xl text-white focus-ring text-sm" oninput="pr_generatePrompt()">
+                        </div>
+                        <div class="w-1/2">
+                            <label class="block text-xs font-bold text-slate-400 mb-1">קהל יעד לדו"ח</label>
+                            <input type="text" id="pr_audience" value="הנהלה בכירה (C-Level)" class="w-full p-2.5 bg-black/40 border border-white/10 rounded-xl text-white focus-ring text-sm" oninput="pr_generatePrompt()">
+                        </div>
+                    </div>
+                    <div class="flex gap-4">
+                        <div class="w-1/2">
+                            <label class="block text-xs font-bold text-slate-400 mb-1">שפת היעד</label>
+                            <select id="pr_language" class="w-full p-2.5 bg-black/40 border border-white/10 rounded-xl text-white focus-ring text-sm" onchange="pr_generatePrompt()">
+                                <option value="he">עברית (he)</option>
+                                <option value="en">אנגלית (en)</option>
+                                <option value="ar">ערבית (ar)</option>
+                            </select>
+                        </div>
+                        <div class="w-1/2">
+                            <label class="block text-xs font-bold text-slate-400 mb-1">מספר נושאים מרכזיים</label>
+                            <input type="number" id="pr_num_topics" value="5" min="1" max="10" class="w-full p-2.5 bg-black/40 border border-white/10 rounded-xl text-white focus-ring text-sm" oninput="pr_generatePrompt()">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-400 mb-1">מיקוד אנליטי (אופציונלי)</label>
+                        <input type="text" id="pr_focus" value="זיהוי תלונות צרכניות מרכזיות ופערי שירות" class="w-full p-2.5 bg-black/40 border border-white/10 rounded-xl text-white focus-ring text-sm" oninput="pr_generatePrompt()">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-400 mb-1">החרגות (מה לסנן החוצה?)</label>
+                        <input type="text" id="pr_exclusions" value="פוסטים שעוסקים במבצעים, הנחות והגרלות" class="w-full p-2.5 bg-black/40 border border-white/10 rounded-xl text-white focus-ring text-sm" oninput="pr_generatePrompt()">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-400 mb-1">הערות והנחיות מיוחדות</label>
+                        <textarea id="pr_general_notes" rows="2" placeholder="לדוגמה: הצג את הנתונים באופן בוטה וישיר..." class="w-full p-2.5 bg-black/40 border border-white/10 rounded-xl text-white focus-ring text-sm resize-none" oninput="pr_generatePrompt()"></textarea>
+                    </div>
+                    <div class="bg-black/20 p-4 rounded-xl border border-white/5">
+                        <label class="block text-xs font-bold text-slate-300 mb-3">משקולות לציון השפעה <span class="text-[10px] font-normal text-slate-500">(יחושב אוטומטית ל-100%)</span></label>
+                        <div class="flex gap-3">
+                            <div class="w-1/3"><span class="block text-[10px] text-slate-400 mb-1 text-center">מעורבות</span><input type="number" id="pr_w_eng" value="50" min="0" class="w-full p-1.5 bg-black/40 border border-white/10 rounded-lg text-center text-white text-sm" oninput="pr_generatePrompt()"></div>
+                            <div class="w-1/3"><span class="block text-[10px] text-slate-400 mb-1 text-center">חשיפת כותב</span><input type="number" id="pr_w_auth" value="40" min="0" class="w-full p-1.5 bg-black/40 border border-white/10 rounded-lg text-center text-white text-sm" oninput="pr_generatePrompt()"></div>
+                            <div class="w-1/3"><span class="block text-[10px] text-slate-400 mb-1 text-center">בסיס מובנה</span><input type="number" id="pr_w_base" value="10" min="0" class="w-full p-1.5 bg-black/40 border border-white/10 rounded-lg text-center text-white text-sm" oninput="pr_generatePrompt()"></div>
+                        </div>
+                    </div>
+                    <div class="bg-black/20 p-4 rounded-xl border border-white/5">
+                        <label class="block text-xs font-bold text-slate-300 mb-2">נושאים שוליים</label>
+                        <div class="flex items-center gap-4 mb-3">
+                            <label class="inline-flex items-center cursor-pointer"><input type="radio" name="pr_marginal_toggle" value="yes" checked class="form-radio text-pink-500 bg-black/40 border-white/10 focus:ring-pink-500" onchange="pr_toggleMarginal(); pr_generatePrompt()"><span class="mr-2 text-sm text-slate-300">כלול בסקירה</span></label>
+                            <label class="inline-flex items-center cursor-pointer"><input type="radio" name="pr_marginal_toggle" value="no" class="form-radio text-pink-500 bg-black/40 border-white/10 focus:ring-pink-500" onchange="pr_toggleMarginal(); pr_generatePrompt()"><span class="mr-2 text-sm text-slate-300">ללא</span></label>
+                        </div>
+                        <input type="text" id="pr_marginal_desc" value="הצג עד 3-5 נושאים שוליים (בעלי נפח או השפעה נמוכים)" class="w-full p-2.5 bg-black/40 border border-white/10 rounded-xl text-white focus-ring text-sm transition" oninput="pr_generatePrompt()">
+                    </div>
+                </div>
+                <button onclick="pr_copyToClipboard()" class="mt-8 w-full bg-gradient-to-r from-pink-600 to-purple-600 text-white font-bold py-3.5 px-4 rounded-xl shadow-[0_4px_15px_rgba(236,72,153,0.3)] hover:opacity-90 transition duration-200 flex justify-center items-center gap-2">
+                    <i data-lucide="copy" class="w-5 h-5"></i> <span>העתק פרומפט מוכן</span>
+                </button>
+                <p id="pr_copyMsg" class="text-emerald-400 text-sm mt-3 text-center hidden font-bold">הפרומפט הועתק בהצלחה!</p>
+            </div>
+            <div class="w-full md:w-7/12 p-6 md:p-8 bg-black/60 flex flex-col relative">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-sm font-bold text-slate-300">הפרומפט שנוצר:</h2>
+                    <span class="bg-purple-900/50 text-purple-200 text-[10px] font-bold px-2.5 py-1 rounded border border-purple-500/30">מתעדכן בזמן אמת</span>
+                </div>
+                <textarea id="pr_promptOutput" readonly class="w-full flex-grow min-h-[600px] p-5 bg-transparent text-pink-100/90 rounded-xl text-sm font-mono leading-relaxed outline-none resize-none border border-white/10 shadow-inner"></textarea>
+            </div>
+        </div>
+    </div>
+
+
+    <script>
+        lucide.createIcons();
+
+        // --- TAB NAVIGATION ---
+        function switchTab(tabId) {
+            document.querySelectorAll('.main-tab-content').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.nav-btn').forEach(el => {
+                el.classList.remove('active'); el.classList.add('text-slate-300'); el.classList.remove('text-white');
+            });
+            document.getElementById(tabId).classList.add('active');
+            const btn = document.getElementById('nav-' + tabId);
+            if (btn) { btn.classList.add('active'); btn.classList.remove('text-slate-300'); btn.classList.add('text-white'); }
+        }
+
+        // =====================================================================
+        // 1. QUERY BUILDER
+        // =====================================================================
+        (function initTool1() {
+            const DEFAULT_PREFIXES = ["", "ו", "ב", "מ", "ל", "ה", "ש", "ומ", "ול", "כש", "שה", "מה", "וכש", "ומה", "ובה"];
+            const LIMIT_CHARS = 4096;
+            let prefixes = [...DEFAULT_PREFIXES];
+            let groups = [];
+            let advancedMode = false;
+            let dedupeMode = false;
+            let globalConnector = { type: "OR", distance: 15 };
+            let advancedConnectors = [];
+
+            const el = (id) => document.getElementById(id);
+            function escapeHtml(str) { return String(str).replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;"); }
+            function generateGroupQuery(words, prefixesList) {
+                const searchPhrases = [];
+                for (const word of words) { searchPhrases.push(prefixesList.map(prefix => `"${prefix}${word}"`).join(" OR ")); }
+                return `(${searchPhrases.join(" OR ")})`;
+            }
+            function connectorToString(conn) {
+                const t = (conn?.type || "AND").toUpperCase();
+                if (t === "NEAR" || t === "ONEAR") return `${t}/${sanitizeDistance(conn?.distance)}`;
+                return t;
+            }
+            function sanitizeDistance(x) { const n = Number(x); if (!Number.isFinite(n)) return 15; return Math.max(1, Math.min(100, Math.round(n))); }
+            function buildQueryFromWordGroups(wordGroups, prefixesList, connectorPlan) {
+                const cleanedGroups = wordGroups.filter(g => g.length > 0);
+                if (cleanedGroups.length === 0) return "";
+                const groupQueries = cleanedGroups.map(g => generateGroupQuery(g, prefixesList));
+                if (groupQueries.length === 1) return groupQueries[0];
+                if (connectorPlan.mode === "advanced") {
+                    const connectors = connectorPlan.between || [];
+                    const resultParts = [groupQueries[0]];
+                    for (let i = 1; i < groupQueries.length; i++) { resultParts.push(connectorToString(connectors[i - 1] || globalConnector)); resultParts.push(groupQueries[i]); }
+                    return resultParts.join(" ");
+                }
+                return groupQueries.join(` ${connectorToString(connectorPlan.global || globalConnector)} `);
+            }
+            function parseWords(text) {
+                if (!text) return [];
+                const raw = text.split(/\n|,/g).map(s => s.trim().replace(/["״]/g, "?")).filter(Boolean);
+                if (!dedupeMode) return raw;
+                const seen = new Set(); const out = [];
+                for (const w of raw) { if (seen.has(w)) continue; seen.add(w); out.push(w); }
+                return out;
+            }
+            function getWordGroupsFromUI() { return groups.map(g => parseWords(g.wordsText)); }
+            function countWords(wordGroups) { return wordGroups.reduce((sum, grp) => sum + grp.length, 0); }
+            function renderPrefixChips() {
+                const wrap = el("tw_prefixChips"); wrap.innerHTML = "";
+                prefixes.forEach((p, idx) => {
+                    const isEmpty = p === "";
+                    const chip = document.createElement("div");
+                    chip.className = "group inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-2 py-1.5 text-sm shadow-sm";
+                    chip.innerHTML = `<span class="mono text-xs rounded px-1 ${isEmpty ? "text-slate-400" : "text-white"}">${isEmpty ? "ריק" : escapeHtml(p)}</span><button class="tw_removePrefix text-slate-400 hover:text-rose-400 transition" title="הסר תחילית" data-idx="${idx}"><i data-lucide="x" class="w-3 h-3"></i></button>`;
+                    wrap.appendChild(chip);
+                });
+                lucide.createIcons(); el("tw_statPrefixes").textContent = String(prefixes.length);
+            }
+            function renderGroups() {
+                const wrap = el("tw_groupsWrap"); wrap.innerHTML = "";
+                groups.forEach((g, i) => {
+                    const card = document.createElement("div");
+                    card.className = "rounded-2xl border border-white/10 bg-white/5 p-4 shadow-sm relative";
+                    card.innerHTML = `<div class="flex items-start justify-between gap-3 mb-2"><div class="text-sm font-bold text-white">קבוצה ${i + 1} <span class="text-xs font-normal text-slate-400 ml-2">(<span id="tw_groupCount_${g.id}">0</span> מילים)</span></div><button class="tw_btnRemoveGroup text-xs text-rose-400 hover:text-rose-300 transition" data-id="${g.id}">הסר</button></div><textarea class="tw_groupTextarea focus-ring w-full min-h-[90px] rounded-xl border border-white/10 bg-black/40 text-white px-3 py-2 text-sm placeholder:text-slate-500" data-id="${g.id}" placeholder="לדוגמה: מילה 1, מילה 2...">${escapeHtml(g.wordsText || "")}</textarea>`;
+                    wrap.appendChild(card);
+                });
+                refreshGroupCounts(); syncAdvancedConnectorsLength(); renderAdvancedConnectorsUI();
+            }
+            function refreshGroupCounts() { groups.forEach(g => { const cnt = parseWords(g.wordsText).length; const counter = el(`tw_groupCount_${g.id}`); if (counter) counter.textContent = String(cnt); }); }
+            function renderGlobalConnectorUI() {
+                el("tw_globalConnector").value = globalConnector.type;
+                const needsX = (globalConnector.type === "NEAR" || globalConnector.type === "ONEAR");
+                el("tw_globalDistanceWrap").classList.toggle("hidden", !needsX);
+                el("tw_globalDistance").value = String(sanitizeDistance(globalConnector.distance));
+            }
+            function renderAdvancedModeUI() {
+                const t = el("tw_advancedToggle"); t.setAttribute("data-on", advancedMode ? "true" : "false");
+                el("tw_advancedConnectorsWrap").classList.toggle("hidden", !advancedMode); renderAdvancedConnectorsUI();
+            }
+            function renderAdvancedConnectorsUI() {
+                const list = el("tw_advancedConnectorsList"); if (!advancedMode) { list.innerHTML = ""; return; }
+                list.innerHTML = ""; const n = groups.length;
+                if (n <= 1) { list.innerHTML = `<div class="text-sm text-slate-400">הוסף לפחות 2 קבוצות.</div>`; return; }
+                for (let i = 0; i < n - 1; i++) {
+                    const conn = advancedConnectors[i] || { type: globalConnector.type, distance: globalConnector.distance };
+                    const row = document.createElement("div"); row.className = "rounded-xl border border-white/10 bg-black/20 p-3";
+                    row.innerHTML = `<div class="flex flex-col md:flex-row md:items-center justify-between gap-3"><div class="text-sm font-bold text-white">בין ${i + 1} ל-${i + 2}</div><div class="flex items-center gap-2"><select class="tw_advConnType focus-ring rounded-lg border border-white/10 bg-black/60 text-white px-2 py-1.5 text-xs" data-idx="${i}"><option value="AND" ${conn.type==="AND"?"selected":""}>AND</option><option value="OR" ${conn.type==="OR"?"selected":""}>OR</option><option value="NEAR" ${conn.type==="NEAR"?"selected":""}>NEAR/x</option><option value="ONEAR" ${conn.type==="ONEAR"?"selected":""}>ONEAR/x</option><option value="SENTENCE" ${conn.type==="SENTENCE"?"selected":""}>SENTENCE</option><option value="OSENTENCE" ${conn.type==="OSENTENCE"?"selected":""}>OSENTENCE</option></select><div class="tw_advConnXWrap ${ (conn.type==="NEAR"||conn.type==="ONEAR") ? "" : "hidden" }" data-idx="${i}"><input type="number" min="1" max="100" class="tw_advConnX focus-ring w-16 rounded-lg border border-white/10 bg-black/60 text-white px-2 py-1.5 text-xs text-center" data-idx="${i}" value="${sanitizeDistance(conn.distance)}"/></div></div></div>`;
+                    list.appendChild(row);
+                }
+            }
+            function syncAdvancedConnectorsLength() {
+                const needed = Math.max(0, groups.length - 1);
+                while (advancedConnectors.length < needed) advancedConnectors.push({ type: globalConnector.type, distance: globalConnector.distance });
+                while (advancedConnectors.length > needed) advancedConnectors.pop();
+            }
+            function renderOutputAndStats() {
+                const wordGroups = getWordGroupsFromUI(); const totalWords = countWords(wordGroups);
+                const connectorPlan = advancedMode ? { mode: "advanced", between: advancedConnectors } : { mode: "global", global: globalConnector };
+                const out = buildQueryFromWordGroups(wordGroups, prefixes, connectorPlan);
+                el("tw_output").textContent = out; el("tw_statGroups").textContent = String(groups.length); el("tw_statWords").textContent = String(totalWords); el("tw_statChars").textContent = String(out.length);
+                const statusEl = el("tw_statStatus");
+                if (!out) { statusEl.textContent = "אין פלט"; statusEl.className = "text-sm text-slate-500 mt-2 text-center"; }
+                else if (out.length > LIMIT_CHARS) { statusEl.textContent = "חורג מהסף!"; statusEl.className = "text-sm text-amber-500 font-bold mt-2 text-center"; }
+                else { statusEl.textContent = "תקין"; statusEl.className = "text-sm text-emerald-400 font-bold mt-2 text-center"; }
+                el("tw_validationMsg").classList.add("hidden");
+            }
+            el("tw_groupsWrap").addEventListener("input", (e) => { const ta = e.target.closest(".tw_groupTextarea"); if (!ta) return; const id = ta.getAttribute("data-id"); groups = groups.map(g => g.id === id ? ({...g, wordsText: ta.value ?? ""}) : g); refreshGroupCounts(); renderOutputAndStats(); });
+            el("tw_groupsWrap").addEventListener("click", (e) => { const removeBtn = e.target.closest(".tw_btnRemoveGroup"); if (removeBtn) { groups = groups.filter(g => g.id !== removeBtn.getAttribute("data-id")); if (groups.length === 0) groups.push({ id: Date.now().toString(), wordsText: "" }); renderGroups(); renderOutputAndStats(); } });
+            el("tw_btnAddGroup").onclick = () => { groups.push({id: Date.now().toString(), wordsText: ""}); renderGroups(); renderOutputAndStats(); };
+            el("tw_btnSavePrefix").onclick = () => { const v = el("tw_prefixInput").value.trim(); if (v !== "" || !prefixes.includes("")) { prefixes.push(v); renderPrefixChips(); renderOutputAndStats(); } el("tw_prefixInput").value = ""; };
+            el("tw_prefixChips").addEventListener("click", (e) => { const btn = e.target.closest(".tw_removePrefix"); if (btn) { prefixes.splice(Number(btn.dataset.idx), 1); if (prefixes.length === 0) prefixes = [""]; renderPrefixChips(); renderOutputAndStats(); } });
+            el("tw_globalConnector").onchange = (e) => { globalConnector.type = e.target.value; renderGlobalConnectorUI(); syncAdvancedConnectorsLength(); renderAdvancedConnectorsUI(); renderOutputAndStats(); };
+            el("tw_globalDistance").oninput = (e) => { globalConnector.distance = sanitizeDistance(e.target.value); renderGlobalConnectorUI(); renderOutputAndStats(); };
+            el("tw_advancedToggle").onclick = () => { advancedMode = !advancedMode; renderAdvancedModeUI(); renderOutputAndStats(); };
+            el("tw_btnToggleDedupe").onclick = () => { dedupeMode = !dedupeMode; el("tw_dedupeBadge").classList.toggle("hidden", !dedupeMode); refreshGroupCounts(); renderOutputAndStats(); };
+            el("tw_advancedConnectorsList").addEventListener("change", (e) => { const sel = e.target.closest(".tw_advConnType"); if(sel) { const idx = Number(sel.dataset.idx); if(!advancedConnectors[idx]) advancedConnectors[idx] = {type:"AND",distance:15}; advancedConnectors[idx].type = sel.value; const wrap = el("tw_advancedConnectorsList").querySelector(`.tw_advConnXWrap[data-idx="${idx}"]`); if(wrap) wrap.classList.toggle("hidden", !(sel.value==="NEAR"||sel.value==="ONEAR")); renderOutputAndStats(); } });
+            el("tw_advancedConnectorsList").addEventListener("input", (e) => { const inp = e.target.closest(".tw_advConnX"); if(inp) { advancedConnectors[Number(inp.dataset.idx)].distance = sanitizeDistance(inp.value); renderOutputAndStats(); } });
+            el("tw_btnReset").onclick = () => { prefixes=[...DEFAULT_PREFIXES]; groups=[{id:Date.now().toString(), wordsText:""}]; advancedMode=false; dedupeMode=false; globalConnector={type:"OR", distance:15}; advancedConnectors=[]; el("tw_dedupeBadge").classList.add("hidden"); renderGlobalConnectorUI(); renderAdvancedModeUI(); renderPrefixChips(); renderGroups(); renderOutputAndStats(); };
+            el("tw_btnLoadExample").onclick = () => { prefixes=[...DEFAULT_PREFIXES]; dedupeMode=false; advancedMode=false; globalConnector={type:"NEAR", distance:5}; groups=[{id:'1', wordsText:'יו"ר הכנסת\nיו"ר'}, {id:'2', wordsText:'נאום\nמליאה'}]; syncAdvancedConnectorsLength(); el("tw_dedupeBadge").classList.add("hidden"); renderGlobalConnectorUI(); renderAdvancedModeUI(); renderPrefixChips(); renderGroups(); renderOutputAndStats(); };
+            el("tw_btnCopy").onclick = () => { navigator.clipboard.writeText(el("tw_output").textContent); el("tw_copyToast").classList.remove('hidden'); setTimeout(()=>el("tw_copyToast").classList.add('hidden'),1500); };
+            el("tw_btnDownload").onclick = () => { const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([el("tw_output").textContent],{type:"text/plain"})); a.download="query.txt"; a.click(); };
+            groups = [{id: Date.now().toString(), wordsText: ""}];
+            renderGlobalConnectorUI(); renderAdvancedModeUI(); renderPrefixChips(); renderGroups(); renderOutputAndStats();
+        })();
+
+        // =====================================================================
+        // 2. DATA CLEANING
+        // =====================================================================
+        (function initTool2() {
+            const EXPORT_HEADERS = ["url","published","title","content","root_url","lang","source_type","tags_internal","source_extended_attributes.facebook_followers","source_extended_attributes.twitter_followers","source_extended_attributes.instagram_followers","source_extended_attributes.pinterest_followers","extra_author_attributes.name","engagement","reach"];
+            let originalRows = [], selectedRows = [], dedupAvoided = 0;
+            let engagementCol = null, reachCol = null;
+            let previewEngRows = [], previewOtherRows = [];
+            const el = (id) => document.getElementById(id);
+            function normalizeKey(s) { return String(s ?? "").trim().toLowerCase().replace(/[\s\-_]+/g, ""); }
+            function parseNumber(v) { const n = Number(String(v).replace(/[^\d.\-]/g, "")); return Number.isFinite(n) ? n : 0; }
+            function clampInt(n, min, max) { return Math.max(min, Math.min(max, Math.floor(Number(n)))); }
+            function findMetricColumn(headers, kind) {
+                const norm = headers.map(h => ({ h, nk: normalizeKey(h) }));
+                if (kind === "eng") return norm.find(x => x.nk.includes("engagement") || x.nk.includes("engage"))?.h;
+                if (kind === "reach") return norm.find(x => x.nk === "reach" || x.nk.includes("impression") || x.nk.includes("view"))?.h;
+                return null;
+            }
+            function computeQuotas(totalRows) {
+                const total = Math.min(clampInt(el("sc_totalTargetInput").value, 1, 1000000), totalRows);
+                const engPct = clampInt(el("sc_engPctInput").value, 0, 100);
+                const e = Math.max(0, Math.min(total, Math.round(total * (engPct / 100))));
+                return { total, e, r: total - e };
+            }
+            function refreshQuotaUI() { const q = computeQuotas(Math.max(1, originalRows.length)); el("sc_quotaEngText").textContent = q.e; el("sc_quotaOtherText").textContent = q.r; }
+            function buildExportRow(r) { const out = {}; EXPORT_HEADERS.forEach(h => out[h] = (r?.[h] === null || r?.[h] === undefined) ? "" : r[h]); return out; }
+            function renderPreviewTable(rows) {
+                const th = el("sc_previewThead"), tb = el("sc_previewTbody"); th.innerHTML = ""; tb.innerHTML = "";
+                if(!rows.length) return;
+                EXPORT_HEADERS.forEach(h => { th.innerHTML += `<th class="px-2 py-2 text-[11px] font-bold border-b border-white/10" title="${h}">${h}</th>`; });
+                rows.forEach(r => { let tr = `<tr class="hover:bg-white/5">`; EXPORT_HEADERS.forEach(h => { tr += `<td class="px-2 py-1 text-[11px] max-w-[120px] truncate" title="${r[h]}">${r[h]}</td>`; }); tb.innerHTML += tr + `</tr>`; });
+            }
+            el("sc_totalTargetInput").oninput = refreshQuotaUI; el("sc_engPctInput").oninput = refreshQuotaUI;
+            el("sc_fileInput").onchange = async (e) => {
+                const file = e.target.files[0]; if(!file) return;
+                el("sc_statusText").textContent = "קורא קובץ…";
+                try {
+                    const buf = await file.arrayBuffer();
+                    const wb = XLSX.read(buf, { type: "array" });
+                    const ws = wb.Sheets[wb.SheetNames[0]];
+                    const json = XLSX.utils.sheet_to_json(ws, { defval: "", raw: true });
+                    originalRows = json.map((r, i) => ({ _i: i, ...r }));
+                    if(!originalRows.length) throw new Error("גיליון ריק");
+                    const originalHeaders = Object.keys(originalRows[0]).filter(k=>k!=='_i');
+                    engagementCol = findMetricColumn(originalHeaders, "eng");
+                    reachCol = findMetricColumn(originalHeaders, "reach");
+                    el("sc_kpiTotal").textContent = originalRows.length;
+                    el("sc_btnExtract").disabled = false;
+                    el("sc_previewMeta").textContent = `עמודות חילוץ: ${EXPORT_HEADERS.length}`;
+                    el("sc_statusText").textContent = `נטען: ${originalRows.length} שורות. (${engagementCol?'✓':'✗'}Eng, ${reachCol?'✓':'✗'}Reach)`;
+                    refreshQuotaUI();
+                } catch(err) { el("sc_statusText").textContent = "שגיאה בקריאת הקובץ."; console.error(err); }
+            };
+            el("sc_btnExtract").onclick = () => {
+                if(!originalRows.length) return;
+                if(!engagementCol || !reachCol) { el("sc_statusText").textContent = "שגיאה: חסרות עמודות מעורבות/חשיפה בקובץ."; return; }
+                const clean = originalRows.filter(r => !String(r["extra_author_attributes.name"]||"").toLowerCase().includes("grok"));
+                const grokCount = originalRows.length - clean.length;
+                const byE = [...clean].sort((a,b)=>parseNumber(b[engagementCol])-parseNumber(a[engagementCol]));
+                const byR = [...clean].sort((a,b)=>parseNumber(b[reachCol])-parseNumber(a[reachCol]));
+                previewEngRows = byE.slice(0,20).map(buildExportRow);
+                previewOtherRows = byR.slice(0,20).map(buildExportRow);
+                const q = computeQuotas(clean.length); const picked = new Set(); selectedRows = []; dedupAvoided = 0;
+                for(let i=0; i<byE.length && selectedRows.length<q.e; i++) { if(!picked.has(byE[i]._i)) { picked.add(byE[i]._i); selectedRows.push(buildExportRow(byE[i])); } }
+                const targetTot = q.e + q.r;
+                for(let i=0; i<byR.length && selectedRows.length<targetTot; i++) { if(!picked.has(byR[i]._i)) { picked.add(byR[i]._i); selectedRows.push(buildExportRow(byR[i])); } else { dedupAvoided++; } }
+                el("sc_kpiSelected").textContent = selectedRows.length; el("sc_kpiDedup").textContent = dedupAvoided;
+                el("sc_btnDownload").disabled = selectedRows.length === 0;
+                el("sc_statusText").textContent = `הסתיים. נבחרו ${selectedRows.length} שורות. הוסרו ${grokCount} פוסטים של Grok.`;
+                el("sc_tabEng").classList.add("tab-active"); el("sc_tabOther").classList.remove("tab-active");
+                renderPreviewTable(previewEngRows);
+            };
+            el("sc_btnDownload").onclick = () => { if(!selectedRows.length) return; const ws = XLSX.utils.json_to_sheet(selectedRows, {header: EXPORT_HEADERS}); const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "top"); XLSX.writeFile(wb, `Filtered_Top_${selectedRows.length}rows.xlsx`); };
+            el("sc_btnReset").onclick = () => { originalRows=[]; selectedRows=[]; el("sc_fileInput").value=""; el("sc_btnExtract").disabled=true; el("sc_btnDownload").disabled=true; el("sc_previewTbody").innerHTML=""; el("sc_kpiTotal").textContent="‐"; el("sc_kpiSelected").textContent="‐"; el("sc_kpiDedup").textContent="‐"; el("sc_statusText").textContent="ממתין לקובץ..."; };
+            el("sc_tabEng").onclick = () => { el("sc_tabEng").classList.add("tab-active"); el("sc_tabOther").classList.remove("tab-active"); renderPreviewTable(previewEngRows); };
+            el("sc_tabOther").onclick = () => { el("sc_tabOther").classList.add("tab-active"); el("sc_tabEng").classList.remove("tab-active"); renderPreviewTable(previewOtherRows); };
+        })();
+
+        // =====================================================================
+        // 3. TEXT CLASSIFIER
+        // =====================================================================
+        (function initClassifier() {
+            const COLORS = ['#ec4899','#a855f7','#22d3ee','#f59e0b','#10b981','#f97316','#6366f1','#ef4444','#84cc16','#06b6d4'];
+            let cl_rawData = [], cl_allColumns = [], cl_categories = [], cl_searchCols = [], cl_selectedCols = [], cl_classifiedData = [], cl_dateColumns = new Set();
+            let cl_outputMode = 'binary';
+
+            window.cl_outputMode = 'binary';
+
+            function clEl(id) { return document.getElementById(id); }
+            function cl_showStatus(id, type, msg) { const el = clEl(id); el.className = `cl-status ${type}`; el.textContent = msg; el.style.display = 'block'; }
+            function cl_activateStep(n) {
+                for (let i = 1; i <= 5; i++) {
+                    const card = clEl(`cl_step${i}`); const pill = clEl(`cl_pill${i}`);
+                    if (!card) continue;
+                    if (i <= n) { card.classList.remove('cl-section-hidden'); if (pill) pill.classList.add('active'); }
+                    if (i === n) setTimeout(() => card.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 100);
+                }
+            }
+
+            // Upload
+            const uploadZone = clEl('cl_uploadZone');
+            uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('drag-over'); });
+            uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag-over'));
+            uploadZone.addEventListener('drop', e => { e.preventDefault(); uploadZone.classList.remove('drag-over'); cl_handleFile(e.dataTransfer.files[0]); });
+            clEl('cl_fileInput').addEventListener('change', e => cl_handleFile(e.target.files[0]));
+
+            function cl_handleFile(file) {
+                if (!file) return;
+                clEl('cl_uploadedName').textContent = file.name;
+                const reader = new FileReader();
+                reader.onload = e => {
+                    try {
+                        const wb = XLSX.read(e.target.result, { type: 'binary', cellDates: true });
+                        const ws = wb.Sheets[wb.SheetNames[0]];
+                        const json = XLSX.utils.sheet_to_json(ws, { defval: '', raw: false });
+                        const jsonRaw = XLSX.utils.sheet_to_json(ws, { defval: '', raw: true });
+                        if (!json.length) { cl_showStatus('cl_uploadStatus', 'error', 'הקובץ ריק או לא תקין'); return; }
+
+                        cl_dateColumns = new Set();
+                        const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
+                        const headers = XLSX.utils.sheet_to_json(ws, { header: 1 })[0] || [];
+                        for (let C = range.s.c; C <= range.e.c; C++) {
+                            for (let R = range.s.r + 1; R <= Math.min(range.e.r, range.s.r + 10); R++) {
+                                const cell = ws[XLSX.utils.encode_cell({ r: R, c: C })];
+                                if (cell && (cell.t === 'd' || (cell.t === 'n' && cell.z && cell.z.toLowerCase().includes('d')))) {
+                                    if (headers[C] !== undefined) cl_dateColumns.add(headers[C]);
+                                }
+                            }
+                        }
+                        cl_rawData = jsonRaw.map((rowRaw, ri) => {
+                            const rowFmt = json[ri]; const out = {};
+                            Object.keys(rowRaw).forEach(col => { out[col] = (cl_dateColumns.has(col) && rowFmt[col]) ? rowFmt[col] : (rowRaw[col] ?? ''); });
+                            return out;
+                        });
+                        cl_allColumns = Object.keys(cl_rawData[0] || {});
+                        cl_searchCols = cl_allColumns.filter(col => cl_rawData.some(r => typeof r[col] === 'string' && r[col].trim().length > 0));
+                        cl_selectedCols = [...cl_allColumns];
+                        const dateCols = [...cl_dateColumns].filter(c => cl_allColumns.includes(c));
+                        const dateMsg = dateCols.length ? ` | עמודות תאריך: ${dateCols.join(', ')}` : '';
+                        cl_showStatus('cl_uploadStatus', 'success', `✓ נטענו ${cl_rawData.length} שורות ו-${cl_allColumns.length} עמודות${dateMsg}`);
+                        cl_activateStep(2);
+                        cl_renderDictGrid();
+                        cl_renderColGrid();
+                        cl_renderPreview();
+                    } catch(err) { cl_showStatus('cl_uploadStatus', 'error', 'שגיאה בקריאת הקובץ: ' + err.message); }
+                };
+                reader.readAsBinaryString(file);
+            }
+
+            // Dictionary
+            function cl_renderDictGrid() {
+                const grid = clEl('cl_dictGrid'); grid.innerHTML = '';
+                cl_categories.forEach((cat, i) => {
+                    const div = document.createElement('div');
+                    div.className = 'cl-category'; div.style.borderTopColor = cat.color;
+                    div.innerHTML = `
+                        <button class="cl-del-cat-btn" onclick="cl_deleteCategory(${i})" title="מחק קטגוריה">✕</button>
+                        <div class="cl-cat-header">
+                            <span class="cl-cat-dot" style="background:${cat.color}"></span>
+                            <input class="cl-cat-title" value="${cat.name}" placeholder="שם קטגוריה" oninput="cl_categories[${i}].name=this.value" />
+                        </div>
+                        <div id="cl_tags-${i}">${cat.words.map((w,j)=>cl_wordTag(w,i,j)).join('')}</div>
+                        <div class="cl-word-add-row">
+                            <input class="cl-word-input" id="cl_wi-${i}" placeholder="הוסף מילה..." onkeydown="if(event.key==='Enter')cl_addWord(${i})">
+                            <button class="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-pink-600/70 text-white hover:bg-pink-500 transition text-sm font-bold" onclick="cl_addWord(${i})">+</button>
+                        </div>`;
+                    grid.appendChild(div);
+                });
+                lucide.createIcons();
+            }
+
+            function cl_wordTag(w, ci, wi) { return `<span class="cl-word-tag"><span class="cl-word-del" onclick="cl_removeWord(${ci},${wi})">✕</span>${w}</span>`; }
+
+            window.cl_addWord = function(ci) {
+                const inp = clEl(`cl_wi-${ci}`); const val = inp.value.trim(); if (!val) return;
+                val.split(/[,،]+/).map(w => w.trim()).filter(Boolean).forEach(w => { if (!cl_categories[ci].words.includes(w)) cl_categories[ci].words.push(w); });
+                inp.value = ''; cl_renderDictGrid();
+                setTimeout(() => { const el = clEl(`cl_wi-${ci}`); if(el) el.focus(); }, 0);
+            };
+            window.cl_removeWord = function(ci, wi) { cl_categories[ci].words.splice(wi, 1); cl_renderDictGrid(); };
+            window.cl_deleteCategory = function(i) { cl_categories.splice(i, 1); cl_renderDictGrid(); };
+            window.cl_addCategory = function() {
+                cl_categories.push({ name: `קטגוריה ${cl_categories.length + 1}`, words: [], color: COLORS[cl_categories.length % COLORS.length] });
+                cl_renderDictGrid();
+                setTimeout(() => { const inputs = document.querySelectorAll('.cl-cat-title'); if (inputs.length) inputs[inputs.length-1].focus(); }, 0);
+            };
+            window.cl_clearAllCategories = function() { if (confirm('למחוק את כל הקטגוריות?')) { cl_categories = []; cl_renderDictGrid(); } };
+            window.cl_goToStep3 = function() { cl_activateStep(3); cl_renderSearchColGrid(); };
+
+            // Search cols
+            function cl_renderSearchColGrid() {
+                const grid = clEl('cl_searchColGrid'); grid.innerHTML = '';
+                cl_allColumns.forEach(col => {
+                    const isDate = cl_dateColumns.has(col);
+                    const chip = document.createElement('div');
+                    chip.className = 'cl-col-chip' + (cl_searchCols.includes(col) ? ' selected' : '');
+                    chip.title = isDate ? 'עמודת תאריך — לא מומלץ לחיפוש טקסט' : '';
+                    chip.innerHTML = `<span style="font-size:0.7rem">${cl_searchCols.includes(col) ? '✓' : ''}</span>${col}${isDate ? ' 📅' : ''}`;
+                    chip.onclick = () => { const idx = cl_searchCols.indexOf(col); if (idx > -1) cl_searchCols.splice(idx, 1); else cl_searchCols.push(col); cl_renderSearchColGrid(); };
+                    grid.appendChild(chip);
+                });
+            }
+            window.cl_selectAllSearchCols = function() { cl_searchCols = [...cl_allColumns]; cl_renderSearchColGrid(); };
+            window.cl_deselectAllSearchCols = function() { cl_searchCols = []; cl_renderSearchColGrid(); };
+            window.cl_goToStep4 = function() { cl_activateStep(4); cl_renderColGrid(); };
+
+            // Export cols
+            function cl_renderColGrid() {
+                const grid = clEl('cl_colGrid'); grid.innerHTML = '';
+                cl_allColumns.forEach(col => {
+                    const chip = document.createElement('div');
+                    chip.className = 'cl-col-chip' + (cl_selectedCols.includes(col) ? ' selected' : '');
+                    chip.innerHTML = `<span style="font-size:0.7rem">${cl_selectedCols.includes(col) ? '✓' : ''}</span>${col}`;
+                    chip.onclick = () => { const idx = cl_selectedCols.indexOf(col); if (idx > -1) cl_selectedCols.splice(idx, 1); else cl_selectedCols.push(col); cl_renderColGrid(); };
+                    grid.appendChild(chip);
+                });
+            }
+            window.cl_selectAllCols = function() { cl_selectedCols = [...cl_allColumns]; cl_renderColGrid(); };
+            window.cl_deselectAllCols = function() { cl_selectedCols = []; cl_renderColGrid(); };
+            window.cl_goToStep5 = function() { cl_activateStep(5); cl_renderPreview(); };
+
+            function cl_renderPreview() {
+                const table = clEl('cl_previewTable');
+                const cols = cl_selectedCols.length ? cl_selectedCols : cl_allColumns;
+                if (!cl_rawData.length) return;
+                let html = '<thead><tr>' + cols.map(c => `<th>${c}</th>`).join('') + '</tr></thead><tbody>';
+                cl_rawData.slice(0, 5).forEach(row => { html += '<tr>' + cols.map(c => `<td>${row[c] ?? ''}</td>`).join('') + '</tr>'; });
+                html += '</tbody>'; table.innerHTML = html;
+
+                const stat = clEl('cl_statRow'); stat.innerHTML = `
+                    <div class="cl-stat-box"><div class="cl-stat-num">${cl_rawData.length}</div><div class="cl-stat-label">שורות</div></div>
+                    <div class="cl-stat-box"><div class="cl-stat-num">${cols.length}</div><div class="cl-stat-label">עמודות ייצוא</div></div>
+                    <div class="cl-stat-box"><div class="cl-stat-num">${cl_searchCols.length}</div><div class="cl-stat-label">עמודות חיפוש</div></div>
+                    <div class="cl-stat-box"><div class="cl-stat-num">${cl_categories.length}</div><div class="cl-stat-label">קטגוריות</div></div>
+                    <div class="cl-stat-box"><div class="cl-stat-num">${cl_categories.reduce((a,c)=>a+c.words.length,0)}</div><div class="cl-stat-label">ביטויים</div></div>`;
+            }
+
+            window.cl_runClassification = function() {
+                const mode = document.querySelector('input[name="cl_outputMode"]:checked')?.value || 'binary';
+                if (!cl_categories.length) { cl_showStatus('cl_resultStatus', 'error', 'אין קטגוריות במילון'); return; }
+                if (!cl_searchCols.length) { cl_showStatus('cl_resultStatus', 'error', 'לא נבחרו עמודות חיפוש'); return; }
+                const cols = cl_selectedCols.length ? cl_selectedCols : cl_allColumns;
+                cl_classifiedData = cl_rawData.map(row => {
+                    const out = {}; cols.forEach(c => out[c] = row[c] ?? '');
+                    const text = cl_searchCols.map(c => String(row[c] || '')).join(' ').toLowerCase();
+                    cl_categories.forEach(cat => {
+                        const found = cat.words.find(w => w && text.includes(w.toLowerCase()));
+                        out[cat.name] = mode === 'binary' ? (found ? 1 : 0) : (found || '');
+                    });
+                    return out;
+                });
+                cl_renderResultTable(mode);
+                const hitCount = cl_classifiedData.filter(r => cl_categories.some(c => mode === 'binary' ? r[c.name] === 1 : r[c.name] !== '')).length;
+                cl_showStatus('cl_resultStatus', 'success', `✓ סיווג הושלם! ${hitCount} שורות עם לפחות התאמה אחת`);
+                clEl('cl_exportBtn').classList.remove('cl-section-hidden');
+                cl_renderMatrix(mode);
+            };
+
+            function cl_renderResultTable(mode) {
+                const table = clEl('cl_previewTable');
+                const cols = cl_selectedCols.length ? cl_selectedCols : cl_allColumns;
+                const allKeys = [...cols, ...cl_categories.map(c => c.name)];
+                let html = '<thead><tr>' + allKeys.map(c => {
+                    const isCat = cl_categories.some(cat => cat.name === c);
+                    return `<th${isCat ? ' class="cat-col"' : ''}>${c}</th>`;
+                }).join('') + '</tr></thead><tbody>';
+                cl_classifiedData.slice(0, 50).forEach(row => {
+                    html += '<tr>' + allKeys.map(c => {
+                        const isCat = cl_categories.some(cat => cat.name === c);
+                        const v = row[c] ?? '';
+                        if (isCat) {
+                            if (mode === 'binary') { return v === 1 ? `<td><span class="cl-badge-yes">1</span></td>` : `<td><span class="cl-badge-no">0</span></td>`; }
+                            else { return v ? `<td><span class="cl-badge-phrase">${v}</span></td>` : `<td></td>`; }
+                        }
+                        return `<td>${v}</td>`;
+                    }).join('') + '</tr>';
+                });
+                html += '</tbody>'; table.innerHTML = html;
+            }
+
+            function cl_renderMatrix(mode) {
+                if (cl_categories.length < 2) return;
+                const card = clEl('cl_matrixCard'); card.classList.remove('cl-section-hidden');
+                const n = cl_categories.length; const names = cl_categories.map(c => c.name);
+                const matrix = Array.from({ length: n }, () => Array(n).fill(0));
+                cl_classifiedData.forEach(row => {
+                    const hits = names.map(name => mode === 'binary' ? row[name] === 1 : (row[name] !== '' && row[name] !== undefined));
+                    for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) if (hits[i] && hits[j]) matrix[i][j]++;
+                });
+                let maxOff = 1;
+                for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) if (i !== j && matrix[i][j] > maxOff) maxOff = matrix[i][j];
+                function cellStyle(val, isDiag) {
+                    if (isDiag) return '';
+                    if (val === 0) return 'background:rgba(255,255,255,0.02);color:rgba(255,255,255,0.2)';
+                    const intensity = val / maxOff;
+                    const alpha = Math.round(20 + intensity * 60);
+                    return `background:rgba(236,72,153,${alpha/100});color:${intensity>0.5?'white':'rgba(255,255,255,0.8)'}`;
+                }
+                let html = `<table class="cl-table cl-matrix" style="width:auto"><thead><tr><th class="row-head" style="background:rgba(0,0,0,0.6)"></th>`;
+                names.forEach(name => { html += `<th>${name}</th>`; });
+                html += '</tr></thead><tbody>';
+                names.forEach((rowName, i) => {
+                    html += `<tr><th class="row-head" style="padding:8px 14px;text-align:right;font-size:0.75rem">${rowName}</th>`;
+                    for (let j = 0; j < n; j++) {
+                        const isDiag = i === j;
+                        html += `<td class="mat-cell${isDiag ? ' diag' : ''}" style="${cellStyle(matrix[i][j], isDiag)}">${matrix[i][j]}</td>`;
+                    }
+                    html += '</tr>';
+                });
+                html += '</tbody></table>';
+                clEl('cl_matrixWrap').innerHTML = html;
+                setTimeout(() => card.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 100);
+            }
+
+            window.cl_exportExcel = function() {
+                if (!cl_classifiedData.length) return;
+                const headers = Object.keys(cl_classifiedData[0]);
+                const ws = XLSX.utils.json_to_sheet(cl_classifiedData);
+                const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'תוצאות');
+                const range = XLSX.utils.decode_range(ws['!ref']);
+                headers.forEach((col, ci) => {
+                    if (cl_dateColumns.has(col)) {
+                        for (let R = range.s.r + 1; R <= range.e.r; R++) { const cellAddr = XLSX.utils.encode_cell({ r: R, c: ci }); if (ws[cellAddr]) ws[cellAddr].z = 'DD/MM/YYYY'; }
+                    }
+                });
+                ws['!cols'] = headers.map(h => ({ wch: Math.min(40, Math.max(12, h.length + 4)) }));
+                XLSX.writeFile(wb, 'תוצאות_סיווג.xlsx');
+                cl_showStatus('cl_resultStatus', 'success', '✓ הקובץ הורד בהצלחה!');
+            };
+        })();
+
+        // =====================================================================
+        // 4. PROMPT GENERATOR
+        // =====================================================================
+        function pr_toggleMarginal() {
+            const isYes = document.querySelector('input[name="pr_marginal_toggle"]:checked').value === 'yes';
+            const inputField = document.getElementById('pr_marginal_desc');
+            inputField.disabled = !isYes; inputField.style.opacity = isYes ? '1' : '0.4';
+        }
+        function pr_generatePrompt() {
+            const topic = document.getElementById('pr_topic').value || '[לא הוגדר]';
+            const role = document.getElementById('pr_role').value || 'אנליסט';
+            const audience = document.getElementById('pr_audience').value || 'הנהלה';
+            const language = document.getElementById('pr_language').value;
+            const focus = document.getElementById('pr_focus').value || 'כללי';
+            const num_topics = document.getElementById('pr_num_topics').value || '5';
+            const exclusions = document.getElementById('pr_exclusions').value || 'אין';
+            const generalNotes = document.getElementById('pr_general_notes').value;
+            let wEng = parseFloat(document.getElementById('pr_w_eng').value) || 0;
+            let wAuth = parseFloat(document.getElementById('pr_w_auth').value) || 0;
+            let wBase = parseFloat(document.getElementById('pr_w_base').value) || 0;
+            let totalW = wEng + wAuth + wBase; if(totalW === 0) { wEng=50; wAuth=40; wBase=10; totalW=100; }
+            let pEng = Math.round((wEng/totalW)*100), pAuth = Math.round((wAuth/totalW)*100), pBase = 100-pEng-pAuth;
+            const includeMarginal = document.querySelector('input[name="pr_marginal_toggle"]:checked').value === 'yes';
+            const marginalDesc = document.getElementById('pr_marginal_desc').value;
+            let stepHtmlNum = includeMarginal ? 7 : 6; let stepJsNum = includeMarginal ? 8 : 7;
+            let promptText = `========================\nהגדרות ניתוח דינמיות\n========================\nנושא הניתוח: ${topic}\nקהל היעד לדו"ח: ${audience}\nשפת היעד: ${language}\nמיקוד אנליטי: ${focus}\nמספר נושאים מרכזיים להפקה: ${num_topics}\nהחרגות תוכן (לסנן החוצה): ${exclusions}\n\n========================\nתפקיד ויעדים\n========================\nאתה ${role} המתמחה בניתוח תוכן מרשתות חברתיות.\nהקלט הוא קובץ טבלאי שבו כל שורה מייצגת פריט תוכן, וכל עמודה מייצגת מאפיין, מחבר או מדדי ביצוע.\nמטרתך היא להפיק ניתוח שיח איכותי, מבוסס נתונים ומותאם לקהל היעד, סביב הנושא שהוגדר תוך התייחסות למיקוד האנליטי.\n\n`;
+            if (generalNotes && generalNotes.trim() !== '') promptText += `========================\nהנחיות והערות מיוחדות\n========================\n${generalNotes}\n\n`;
+            promptText += `========================\nשלב 1: סינון ראשוני של הנתונים\n========================\nבצע סינון מחמיר של הרשומות לפי הכללים הבאים:\n1. שפה: כלול אך ורק תוכן בשפה: ${language}.\n2. החרגות: סנן החוצה לחלוטין תכנים העונים על: ${exclusions}.\n3. מקוריות: כלול רק תוכן מקורי (החרג repost, retweet, reshare, share).\n4. טקסט מהותי: כלול רק פריטים הכוללים טקסט מהותי (החרג אמוג'ים בלבד, סיסמאות וטקסט קצר מדי).\n\n========================\nשלב 2: חישוב משקל לכל פריט תוכן\n========================\nחשב ציון השפעה משוקלל פנימי (אין להציג את החישוב בפלט):\n- ${pEng}% משקל למעורבות (לייקים, תגובות, שיתופים).\n- ${pAuth}% משקל להשפעת הכותב (עוקבים/חשיפה).\n- ${pBase}% משקל בסיס לעצם ההופעה.\n\n========================\nשלב 3: זיהוי וקיבוץ נושאים\n========================\nקבץ את פריטי התוכן המשוקללים ל-עד ${num_topics} נושאים מרכזיים בלבד.\n- נושא מייצג *מה* מדברים עליו (לא איך). עמדות שונות יקובצו תחת אותו נושא.\n- הימנע מנושאים כלליים. כל נושא חייב להיות קונקרטי.\n\n========================\nשלב 4: פסקאות סיכום לנושאים המרכזיים\n========================\nעבור כל נושא, כתוב פסקת סיכום אנליטית הכוללת:\n- תיאור קצר וברור.\n- מאפייני השיח (עמדות, טון, מחלוקת/קונצנזוס).\n- תיאור המשתמשים הדומיננטיים (ללא שמות ספציפיים).\n- אינדיקציה לחשיבות הנושא בשיח הכולל.\n\n========================\nשלב 5: הפניות לתוכן תומך (חוקי קישורים מחמירים)\n========================\nבסוף כל פסקת נושא, הוסף: "דוגמאות לתוכן מייצג:". בחירת הדוגמאות תהיה מבוססת השפעה ומעורבות גבוהה בלבד.\nכללי קישורים מחייבים (חסין - חובה):\n1. URL מוחלט שמתחיל אך ורק ב-http:// או https://.\n2. איסור מוחלט על שימוש ב-Markdown לקישורים.\n3. כל URL יוצג אך ורק עטוף בתגית HTML תקנית: <a href="URL" target="_blank" rel="noopener noreferrer">URL</a>.\n4. אסור להציג URL כטקסט גולמי.\n5. ללא כפילויות URL באותה שורה.\n6. אם אין URL תקני - אין להציג את הפריט כדוגמה כלל.\n\n`;
+            if (includeMarginal) promptText += `========================\nשלב 6: זיהוי נושאים שוליים\n========================\n${marginalDesc}.\nהצג משפט-שניים תיאוריים לכל נושא, ללא קישורים וללא ציטוטים.\n\n`;
+            promptText += `========================\nשלב ${stepHtmlNum}: הפקת פלט כקובץ HTML בלבד\n========================\nהפלט הסופי חייב להיות HTML מלא בלבד, ללא כל טקסט מחוץ לו.\n- מבנה נדרש: <!doctype html>, <html lang="${language}" dir="rtl">, <head>, <body>.\n- אזור עליון: שם הדו"ח ותקציר המותאם לקהל היעד (2-3 שורות).\n- עיצוב: RTL מלא, עיצוב מודרני מבוסס כרטיסיות (השראה: Scooper), גרדיאנטים ורוד-סגול. מותר שימוש ב-CSS פנימי או Tailwind.\n\n========================\nשלב ${stepJsNum}: ממשק עריכה ויצוא בתוך ה-HTML\n========================\nחובה לשלב ב-HTML את התכונות הבאות:\n1. כפתור "מצב עריכה" חסין (position: fixed, z-index: 99999) שאינו מוסתר תחת overflow.\n2. תגית Badge בראש הדף: "מצב: עריכה" או "מצב: קריאה בלבד".\n3. מנגנון יצוא: יכולת להוריד את הקובץ כגרסה בר-עריכה, או כגרסה סופית לקריאה בלבד (מנוקה מלוגיקת עריכה וכפתורים).\n4. Fallback: אלמנט העריכה חייב להיות ב-HTML עצמו ולא להיווצר על ידי ה-JavaScript, כדי למנוע היעלמות במקרה של שגיאה.`;
+            document.getElementById('pr_promptOutput').value = promptText;
+        }
+        function pr_copyToClipboard() {
+            const textarea = document.getElementById('pr_promptOutput'); textarea.select(); document.execCommand('copy'); window.getSelection().removeAllRanges();
+            const msg = document.getElementById('pr_copyMsg'); msg.classList.remove('hidden'); setTimeout(() => msg.classList.add('hidden'), 2000);
+        }
+        window.addEventListener('load', () => { pr_toggleMarginal(); pr_generatePrompt(); });
+    </script>
+</body>
+</html>

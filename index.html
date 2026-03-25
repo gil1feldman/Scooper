@@ -586,8 +586,8 @@
                             <input type="text" id="pr_role" value="אנליסט דאטה וחוקר שיח ציבורי" class="w-full p-2.5 bg-black/40 border border-white/10 rounded-xl text-white focus-ring text-sm" oninput="pr_generatePrompt()">
                         </div>
                         <div class="w-1/2">
-                            <label class="block text-xs font-bold text-slate-400 mb-1">קהל יעד לדו"ח</label>
-                            <input type="text" id="pr_audience" value="הנהלה בכירה (C-Level)" class="w-full p-2.5 bg-black/40 border border-white/10 rounded-xl text-white focus-ring text-sm" oninput="pr_generatePrompt()">
+                            <label class="block text-xs font-bold text-slate-400 mb-1">קהל יעד לדו"ח <span class="text-pink-400/70">(ריק = ברירת מחדל)</span></label>
+                            <input type="text" id="pr_audience" value="" placeholder="ברירת מחדל: גולשים ברשתות חברתיות" class="w-full p-2.5 bg-black/40 border border-white/10 rounded-xl text-white focus-ring text-sm" oninput="pr_generatePrompt()">
                         </div>
                     </div>
                     <div class="flex gap-4">
@@ -1122,37 +1122,211 @@
         })();
 
         // =====================================================================
-        // 4. PROMPT GENERATOR
+        // 4. PROMPT GENERATOR — UPDATED
         // =====================================================================
         function pr_toggleMarginal() {
             const isYes = document.querySelector('input[name="pr_marginal_toggle"]:checked').value === 'yes';
             const inputField = document.getElementById('pr_marginal_desc');
             inputField.disabled = !isYes; inputField.style.opacity = isYes ? '1' : '0.4';
         }
+
         function pr_generatePrompt() {
-            const topic = document.getElementById('pr_topic').value || '[לא הוגדר]';
-            const role = document.getElementById('pr_role').value || 'אנליסט';
-            const audience = document.getElementById('pr_audience').value || 'הנהלה';
-            const language = document.getElementById('pr_language').value;
-            const focus = document.getElementById('pr_focus').value || 'כללי';
-            const num_topics = document.getElementById('pr_num_topics').value || '5';
-            const exclusions = document.getElementById('pr_exclusions').value || 'אין';
+            const topic       = document.getElementById('pr_topic').value || '[לא הוגדר]';
+            const role        = document.getElementById('pr_role').value || 'אנליסט';
+            const audienceRaw = document.getElementById('pr_audience').value;
+            const language    = document.getElementById('pr_language').value;
+            const focus       = document.getElementById('pr_focus').value || 'כללי';
+            const num_topics  = document.getElementById('pr_num_topics').value || '5';
+            const exclusions  = document.getElementById('pr_exclusions').value || 'אין';
             const generalNotes = document.getElementById('pr_general_notes').value;
+
             let wEng = parseFloat(document.getElementById('pr_w_eng').value) || 0;
             let wAuth = parseFloat(document.getElementById('pr_w_auth').value) || 0;
             let wBase = parseFloat(document.getElementById('pr_w_base').value) || 0;
-            let totalW = wEng + wAuth + wBase; if(totalW === 0) { wEng=50; wAuth=40; wBase=10; totalW=100; }
-            let pEng = Math.round((wEng/totalW)*100), pAuth = Math.round((wAuth/totalW)*100), pBase = 100-pEng-pAuth;
+            let totalW = wEng + wAuth + wBase;
+            if (totalW === 0) { wEng = 50; wAuth = 40; wBase = 10; totalW = 100; }
+            const pEng  = Math.round((wEng / totalW) * 100);
+            const pAuth = Math.round((wAuth / totalW) * 100);
+            const pBase = 100 - pEng - pAuth;
+
             const includeMarginal = document.querySelector('input[name="pr_marginal_toggle"]:checked').value === 'yes';
             const marginalDesc = document.getElementById('pr_marginal_desc').value;
-            let stepHtmlNum = includeMarginal ? 7 : 6; let stepJsNum = includeMarginal ? 8 : 7;
-            let promptText = `========================\nהגדרות ניתוח דינמיות\n========================\nנושא הניתוח: ${topic}\nקהל היעד לדו"ח: ${audience}\nשפת היעד: ${language}\nמיקוד אנליטי: ${focus}\nמספר נושאים מרכזיים להפקה: ${num_topics}\nהחרגות תוכן (לסנן החוצה): ${exclusions}\n\n========================\nתפקיד ויעדים\n========================\nאתה ${role} המתמחה בניתוח תוכן מרשתות חברתיות.\nהקלט הוא קובץ טבלאי שבו כל שורה מייצגת פריט תוכן, וכל עמודה מייצגת מאפיין, מחבר או מדדי ביצוע.\nמטרתך היא להפיק ניתוח שיח איכותי, מבוסס נתונים ומותאם לקהל היעד, סביב הנושא שהוגדר תוך התייחסות למיקוד האנליטי.\n\n`;
-            if (generalNotes && generalNotes.trim() !== '') promptText += `========================\nהנחיות והערות מיוחדות\n========================\n${generalNotes}\n\n`;
-            promptText += `========================\nשלב 1: סינון ראשוני של הנתונים\n========================\nבצע סינון מחמיר של הרשומות לפי הכללים הבאים:\n1. שפה: כלול אך ורק תוכן בשפה: ${language}.\n2. החרגות: סנן החוצה לחלוטין תכנים העונים על: ${exclusions}.\n3. מקוריות: כלול רק תוכן מקורי (החרג repost, retweet, reshare, share).\n4. טקסט מהותי: כלול רק פריטים הכוללים טקסט מהותי (החרג אמוג'ים בלבד, סיסמאות וטקסט קצר מדי).\n\n========================\nשלב 2: חישוב משקל לכל פריט תוכן\n========================\nחשב ציון השפעה משוקלל פנימי (אין להציג את החישוב בפלט):\n- ${pEng}% משקל למעורבות (לייקים, תגובות, שיתופים).\n- ${pAuth}% משקל להשפעת הכותב (עוקבים/חשיפה).\n- ${pBase}% משקל בסיס לעצם ההופעה.\n\n========================\nשלב 3: זיהוי וקיבוץ נושאים\n========================\nקבץ את פריטי התוכן המשוקללים ל-עד ${num_topics} נושאים מרכזיים בלבד.\n- נושא מייצג *מה* מדברים עליו (לא איך). עמדות שונות יקובצו תחת אותו נושא.\n- הימנע מנושאים כלליים. כל נושא חייב להיות קונקרטי.\n\n========================\nשלב 4: פסקאות סיכום לנושאים המרכזיים\n========================\nעבור כל נושא, כתוב פסקת סיכום אנליטית הכוללת:\n- תיאור קצר וברור.\n- מאפייני השיח (עמדות, טון, מחלוקת/קונצנזוס).\n- תיאור המשתמשים הדומיננטיים (ללא שמות ספציפיים).\n- אינדיקציה לחשיבות הנושא בשיח הכולל.\n\n========================\nשלב 5: הפניות לתוכן תומך (חוקי קישורים מחמירים)\n========================\nבסוף כל פסקת נושא, הוסף: "דוגמאות לתוכן מייצג:". בחירת הדוגמאות תהיה מבוססת השפעה ומעורבות גבוהה בלבד.\nכללי קישורים מחייבים (חסין - חובה):\n1. URL מוחלט שמתחיל אך ורק ב-http:// או https://.\n2. איסור מוחלט על שימוש ב-Markdown לקישורים.\n3. כל URL יוצג אך ורק עטוף בתגית HTML תקנית: <a href="URL" target="_blank" rel="noopener noreferrer">URL</a>.\n4. אסור להציג URL כטקסט גולמי.\n5. ללא כפילויות URL באותה שורה.\n6. אם אין URL תקני - אין להציג את הפריט כדוגמה כלל.\n\n`;
-            if (includeMarginal) promptText += `========================\nשלב 6: זיהוי נושאים שוליים\n========================\n${marginalDesc}.\nהצג משפט-שניים תיאוריים לכל נושא, ללא קישורים וללא ציטוטים.\n\n`;
-            promptText += `========================\nשלב ${stepHtmlNum}: הפקת פלט כקובץ HTML בלבד\n========================\nהפלט הסופי חייב להיות HTML מלא בלבד, ללא כל טקסט מחוץ לו.\n- מבנה נדרש: <!doctype html>, <html lang="${language}" dir="rtl">, <head>, <body>.\n- אזור עליון: שם הדו"ח ותקציר המותאם לקהל היעד (2-3 שורות).\n- עיצוב: RTL מלא, עיצוב מודרני מבוסס כרטיסיות (השראה: Scooper), גרדיאנטים ורוד-סגול. מותר שימוש ב-CSS פנימי או Tailwind.\n\n========================\nשלב ${stepJsNum}: ממשק עריכה ויצוא בתוך ה-HTML\n========================\nחובה לשלב ב-HTML את התכונות הבאות:\n1. כפתור "מצב עריכה" חסין (position: fixed, z-index: 99999) שאינו מוסתר תחת overflow.\n2. תגית Badge בראש הדף: "מצב: עריכה" או "מצב: קריאה בלבד".\n3. מנגנון יצוא: יכולת להוריד את הקובץ כגרסה בר-עריכה, או כגרסה סופית לקריאה בלבד (מנוקה מלוגיקת עריכה וכפתורים).\n4. Fallback: אלמנט העריכה חייב להיות ב-HTML עצמו ולא להיווצר על ידי ה-JavaScript, כדי למנוע היעלמות במקרה של שגיאה.`;
-            document.getElementById('pr_promptOutput').value = promptText;
+
+            // Audience logic: empty = default (social media users)
+            const hasExplicitAudience = audienceRaw.trim() !== '';
+            const effectiveAudience   = hasExplicitAudience ? audienceRaw.trim() : 'גולשים ברשתות חברתיות';
+
+            // Dynamic step numbering
+            const sStep = { topics: 3, dist: 4, summary: 5, links: 6 };
+            let nextStep = 7;
+            const sMarginal = includeMarginal ? nextStep++ : null;
+            const sSummaryExec = nextStep++;
+            const sHtml = nextStep++;
+            const sEdit = nextStep;
+
+            let p = '';
+
+            // ── HEADER ──────────────────────────────────────────────────────
+            p += `========================\nהגדרות ניתוח דינמיות\n========================\n`;
+            p += `נושא הניתוח: ${topic}\n`;
+            p += `קהל היעד לדו"ח: ${effectiveAudience}\n`;
+            p += `שפת היעד: ${language}\n`;
+            p += `מיקוד אנליטי: ${focus}\n`;
+            p += `מספר נושאים מרכזיים להפקה: ${num_topics}\n`;
+            p += `החרגות תוכן (לסנן החוצה): ${exclusions}\n\n`;
+
+            // ── DEFAULT AUDIENCE ────────────────────────────────────────────
+            p += `========================\nהגדרות ברירת מחדל\n========================\n`;
+            if (!hasExplicitAudience) {
+                p += `קהל היעד לא הוגדר — נעשה שימוש בברירת המחדל: גולשים ברשתות חברתיות (שפה נגישה, ללא ז'רגון ניהולי).\n`;
+            }
+            p += `קהל יעד שהוגדר במפורש תמיד גובר על ברירת המחדל.\n`;
+            p += `התאם את שפת הדו"ח, רמת הפירוט והדגשים לקהל היעד הרלוונטי:\n`;
+            p += `- הנהלה בכירה: תמציתי, ממוקד השלכות עסקיות ומדדים.\n`;
+            p += `- גולשי רשתות חברתיות: נגיש, ויזואלי, שפה יומיומית.\n`;
+            p += `- צוותי שירות / תפעול: פרקטי, ממוקד פעולות נדרשות.\n\n`;
+
+            // ── ROLE ────────────────────────────────────────────────────────
+            p += `========================\nתפקיד ויעדים\n========================\n`;
+            p += `אתה ${role} המתמחה בניתוח תוכן מרשתות חברתיות.\n`;
+            p += `הקלט הוא קובץ טבלאי שבו כל שורה מייצגת פריט תוכן, וכל עמודה מייצגת מאפיין, מחבר או מדדי ביצוע.\n`;
+            p += `מטרתך היא להפיק ניתוח שיח איכותי, מבוסס נתונים ומותאם לקהל היעד, סביב הנושא שהוגדר תוך התייחסות למיקוד האנליטי.\n\n`;
+
+            // ── SPECIAL NOTES ───────────────────────────────────────────────
+            if (generalNotes && generalNotes.trim() !== '') {
+                p += `========================\nהנחיות והערות מיוחדות\n========================\n${generalNotes}\n\n`;
+            }
+
+            // ── STEP 1: FILTERING ───────────────────────────────────────────
+            p += `========================\nשלב 1: סינון ראשוני של הנתונים\n========================\n`;
+            p += `בצע סינון מחמיר של הרשומות לפי הכללים הבאים:\n`;
+            p += `1. שפה: כלול אך ורק תוכן בשפה: ${language}.\n`;
+            p += `2. החרגות: סנן החוצה לחלוטין תכנים העונים על: ${exclusions}.\n`;
+            p += `3. מקוריות: כלול רק תוכן מקורי — החרג repost, retweet, reshare, share, quote-tweet שאין בהם תוספת טקסט מקורית.\n`;
+            p += `4. טקסט מהותי: כלול רק פריטים הכוללים טקסט מהותי — החרג אמוג'ים בלבד, סיסמאות, hashtag בלבד, וטקסט קצר מ-10 תווים.\n`;
+            p += `5. רלוונטיות: החרג פריטים שאינם קשורים לנושא הניתוח, גם אם עברו את שאר הסינונים.\n\n`;
+
+            // ── STEP 2: SCORING ─────────────────────────────────────────────
+            p += `========================\nשלב 2: חישוב משקל לכל פריט תוכן\n========================\n`;
+            p += `חשב ציון השפעה משוקלל פנימי (אין להציג את החישוב בפלט):\n`;
+            p += `- ${pEng}% משקל למעורבות (לייקים, תגובות, שיתופים).\n`;
+            p += `- ${pAuth}% משקל להשפעת הכותב (עוקבים/חשיפה).\n`;
+            p += `- ${pBase}% משקל בסיס לעצם ההופעה.\n`;
+            p += `השתמש בציון זה לקביעת הדוגמאות המייצגות ולמיון הנושאים לפי השפעה.\n\n`;
+
+            // ── STEP 3: TOPICS ──────────────────────────────────────────────
+            p += `========================\nשלב ${sStep.topics}: זיהוי וקיבוץ נושאים\n========================\n`;
+            p += `קבץ את פריטי התוכן המשוקללים ל-עד ${num_topics} נושאים מרכזיים בלבד.\n`;
+            p += `- נושא מייצג *מה* מדברים עליו (לא איך). עמדות שונות יקובצו תחת אותו נושא.\n`;
+            p += `- הימנע מנושאים כלליים. כל נושא חייב להיות קונקרטי ונפרד מהאחרים.\n`;
+            p += `- אם שני נושאים חופפים מעל 60% — מזג אותם.\n`;
+            p += `- מיין את הנושאים מהמשפיע ביותר לפחות משפיע לפי ציון ההשפעה המשוקלל.\n\n`;
+
+            // ── STEP 4: DISTRIBUTION + SENTIMENT ───────────────────────────
+            p += `========================\nשלב ${sStep.dist}: התפלגות נושאים וסנטימנט\n========================\n`;
+            p += `לאחר זיהוי הנושאים, הפק עבור כל נושא:\n\n`;
+            p += `א. נפח יחסי:\n`;
+            p += `- אחוז מתוך סך הפריטים הרלוונטיים (לאחר סינון).\n`;
+            p += `- מספר פריטי התוכן המשויכים לנושא.\n\n`;
+            p += `ב. סנטימנט דומיננטי:\n`;
+            p += `- סווג כל פריט תוכן לאחת מהקטגוריות: חיובי / שלילי / ניטרלי / מעורב.\n`;
+            p += `- חשב את התפלגות הסנטימנט לכל נושא (אחוזים).\n`;
+            p += `- הגדר את הסנטימנט הדומיננטי של הנושא.\n`;
+            p += `- ציין עוצמת הסנטימנט: חלש / בינוני / חזק.\n\n`;
+            p += `ג. הצגה ויזואלית בפלט ה-HTML:\n`;
+            p += `- הצג את ההתפלגות כבר גרפי אופקיים (HTML/CSS בלבד, ללא ספריות חיצוניות).\n`;
+            p += `- הצג את הסנטימנט הדומיננטי כ-badge צבעוני (אדום=שלילי, ירוק=חיובי, אפור=ניטרלי, כתום=מעורב).\n\n`;
+
+            // ── STEP 5: SUMMARIES ───────────────────────────────────────────
+            p += `========================\nשלב ${sStep.summary}: פסקאות סיכום לנושאים המרכזיים\n========================\n`;
+            p += `עבור כל נושא, כתוב פסקת סיכום אנליטית הכוללת:\n`;
+            p += `- תיאור קצר וברור של הנושא.\n`;
+            p += `- מאפייני השיח: עמדות שכיחות, טון, מחלוקת או קונצנזוס.\n`;
+            p += `- תיאור המשתמשים הדומיננטיים (ללא שמות ספציפיים — רק פרופיל: מומחה, צרכן רגיל, עיתונאי וכד').\n`;
+            p += `- אינדיקציה לחשיבות הנושא בשיח הכולל.\n`;
+            p += `- השלכה עסקית / תפעולית רלוונטית (מותאמת לקהל היעד).\n\n`;
+
+            // ── STEP 6: LINKS ───────────────────────────────────────────────
+            p += `========================\nשלב ${sStep.links}: הפניות לתוכן תומך\n========================\n`;
+            p += `בסוף כל פסקת נושא הוסף: "דוגמאות לתוכן מייצג:"\n`;
+            p += `בחר 2-3 פריטים בעלי ציון השפעה גבוה במיוחד.\n\n`;
+            p += `━━━ חוקי קישורים — חובה מוחלטת ━━━\n\n`;
+            p += `✅ הפורמט היחיד המותר לכל קישור:\n`;
+            p += `<a href="https://example.com/post/123" target="_blank" rel="noopener noreferrer">https://example.com/post/123</a>\n\n`;
+            p += `❌ אסור בהחלט — כל אחד מאלה פוסל את הפריט:\n`;
+            p += `- Markdown:     [טקסט](URL)  או  [URL](URL)\n`;
+            p += `- URL גולמי:    https://example.com ללא תגית\n`;
+            p += `- תגית שגויה:  <a href="URL">טקסט שונה מה-URL</a>\n`;
+            p += `- כפילות URL:  אותו URL פעמיים באותו נושא\n`;
+            p += `- URL חלקי:    /post/123 ללא דומיין מלא\n\n`;
+            p += `כלל אחד לסיכום: הטקסט הנראה בתוך תגית <a> חייב להיות זהה לחלוטין ל-URL שב-href.\n`;
+            p += `אם URL אינו עומד בכל התנאים — אל תציג את הפריט כלל.\n\n`;
+
+            // ── STEP 7 (optional): MARGINAL TOPICS ─────────────────────────
+            if (includeMarginal) {
+                p += `========================\nשלב ${sMarginal}: זיהוי נושאים שוליים\n========================\n`;
+                p += `${marginalDesc}.\n`;
+                p += `- משפט-שניים תיאוריים לכל נושא.\n`;
+                p += `- ללא קישורים, ללא ציטוטים, ללא ציוני השפעה.\n`;
+                p += `- ציין לכל נושא שולי: מדוע לא עלה לרמת נושא מרכזי (נפח נמוך / השפעה נמוכה / חד-פעמי).\n\n`;
+            }
+
+            // ── STEP: EXECUTIVE SUMMARY ─────────────────────────────────────
+            p += `========================\nשלב ${sSummaryExec}: תקציר מנהלים / סיכום כולל\n========================\n`;
+            p += `בראש הדו"ח (לאחר הכותרת ולפני הנושאים) הוסף תקציר מותאם לקהל היעד:\n`;
+            p += `- הנהלה בכירה: 3-4 נקודות bullet של ממצאים קריטיים והמלצות פעולה.\n`;
+            p += `- גולשי רשתות חברתיות: 2-3 שורות נגישות המסכמות את "מה קורה כרגע".\n`;
+            p += `- צוותי שירות: רשימת פעולות מומלצות ממוינת לפי דחיפות.\n\n`;
+
+            // ── STEP: HTML OUTPUT ────────────────────────────────────────────
+            p += `========================\nשלב ${sHtml}: הפקת פלט כקובץ HTML בלבד\n========================\n`;
+            p += `הפלט הסופי חייב להיות HTML מלא בלבד, ללא כל טקסט מחוץ לו.\n`;
+            p += `מבנה נדרש:\n`;
+            p += `- <!doctype html>\n`;
+            p += `- <html lang="${language}" dir="rtl">\n`;
+            p += `- <head> הכולל: charset, viewport, title, כל ה-CSS\n`;
+            p += `- <body> עם כל התוכן\n\n`;
+            p += `סדר אלמנטים בדף:\n`;
+            p += `1. Badge סטטוס (מצב עריכה / קריאה בלבד)\n`;
+            p += `2. כותרת הדו"ח + מטה-דאטה (תאריך, נושא, קהל יעד)\n`;
+            p += `3. תקציר מנהלים\n`;
+            p += `4. נושאים מרכזיים (כרטיסיות) + גרפי התפלגות + badge סנטימנט\n`;
+            p += `5. נושאים שוליים\n`;
+            p += `6. כפתורי יצוא (fixed)\n\n`;
+            p += `עיצוב:\n`;
+            p += `- RTL מלא\n`;
+            p += `- עיצוב מודרני מבוסס כרטיסיות\n`;
+            p += `- גרדיאנטים ורוד-סגול\n`;
+            p += `- CSS פנימי בלבד (ללא ספריות חיצוניות, ללא Tailwind CDN)\n`;
+            p += `- רספונסיבי למובייל\n\n`;
+
+            // ── STEP: EDIT/EXPORT INTERFACE ──────────────────────────────────
+            p += `========================\nשלב ${sEdit}: ממשק עריכה ויצוא בתוך ה-HTML\n========================\n`;
+            p += `חובה לשלב ב-HTML את התכונות הבאות:\n\n`;
+            p += `1. כפתור "מצב עריכה":\n`;
+            p += `   - position: fixed, bottom: 20px, left: 20px, z-index: 99999\n`;
+            p += `   - נגיש תמיד, לא מוסתר תחת overflow או אלמנטים אחרים\n`;
+            p += `   - מחליף בין contenteditable=true / false על ה-body\n\n`;
+            p += `2. Badge סטטוס בראש הדף:\n`;
+            p += `   - מציג "מצב: עריכה 🖊️" או "מצב: קריאה בלבד 👁️"\n`;
+            p += `   - מתעדכן דינמית בהתאם למצב הנוכחי\n\n`;
+            p += `3. יצוא גרסה סופית (קריאה בלבד):\n`;
+            p += `   - מסיר את כפתורי העריכה והיצוא\n`;
+            p += `   - מסיר את ה-badge\n`;
+            p += `   - מסיר את כל לוגיקת ה-JavaScript\n`;
+            p += `   - שומר את התוכן הנוכחי (כולל עריכות שבוצעו)\n`;
+            p += `   - מוריד כקובץ HTML נקי\n\n`;
+            p += `4. יצוא גרסה בר-עריכה:\n`;
+            p += `   - שומר את כל הפונקציונליות\n`;
+            p += `   - מוריד כקובץ HTML מלא עם כל הלוגיקה\n\n`;
+            p += `5. Fallback חסין:\n`;
+            p += `   - כל אלמנטי העריכה קיימים ב-HTML המקורי\n`;
+            p += `   - JavaScript רק מחליף מצבים, לא יוצר אלמנטים חדשים\n`;
+            p += `   - אם JavaScript נכשל — הדף עדיין קריא ומלא`;
+
+            document.getElementById('pr_promptOutput').value = p;
         }
+
         function pr_copyToClipboard() {
             const textarea = document.getElementById('pr_promptOutput'); textarea.select(); document.execCommand('copy'); window.getSelection().removeAllRanges();
             const msg = document.getElementById('pr_copyMsg'); msg.classList.remove('hidden'); setTimeout(() => msg.classList.add('hidden'), 2000);

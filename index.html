@@ -632,6 +632,22 @@
                         </div>
                         <input type="text" id="pr_marginal_desc" value="הצג עד 3-5 נושאים שוליים (בעלי נפח או השפעה נמוכים)" class="w-full p-2.5 bg-black/40 border border-white/10 rounded-xl text-white focus-ring text-sm transition" oninput="pr_generatePrompt()">
                     </div>
+                    <div class="bg-black/20 p-4 rounded-xl border border-white/5">
+                        <div class="flex items-center justify-between gap-3">
+                            <div>
+                                <label class="block text-xs font-bold text-slate-300">🔍 דוח פנימי (Chain of Thought)</label>
+                                <p class="text-[11px] text-slate-500 mt-0.5">המודל יחשוב בקול לפני כתיבת ה-HTML — לא יופיע בדוח הסופי</p>
+                            </div>
+                            <div id="pr_cotToggle" class="toggle" data-on="false" onclick="pr_toggleCot(); pr_generatePrompt();"><div class="toggleKnob"></div></div>
+                        </div>
+                        <div id="pr_cotDetails" class="hidden mt-3 space-y-1 text-[11px] text-slate-400 border-t border-white/5 pt-3">
+                            <div>✦ ניתוח סינון — כמה שורות עברו/נפסלו ומדוע</div>
+                            <div>✦ מיפוי נושאים — הסבר על קיבוצים ומיזוגים</div>
+                            <div>✦ החלטות סנטימנט — כולל מקרים גבוליים</div>
+                            <div>✦ התאמה לקהל — איך שונתה שפת הדוח</div>
+                            <div>✦ בדיקת קישורים — אימות URL לפני הכתיבה</div>
+                        </div>
+                    </div>
                 </div>
                 <button onclick="pr_copyToClipboard()" class="mt-8 w-full bg-gradient-to-r from-pink-600 to-purple-600 text-white font-bold py-3.5 px-4 rounded-xl shadow-[0_4px_15px_rgba(236,72,153,0.3)] hover:opacity-90 transition duration-200 flex justify-center items-center gap-2">
                     <i data-lucide="copy" class="w-5 h-5"></i> <span>העתק פרומפט מוכן</span>
@@ -1124,6 +1140,13 @@
         // =====================================================================
         // 4. PROMPT GENERATOR — UPDATED
         // =====================================================================
+        function pr_toggleCot() {
+            const toggle = document.getElementById('pr_cotToggle');
+            const isOn = toggle.getAttribute('data-on') === 'true';
+            toggle.setAttribute('data-on', isOn ? 'false' : 'true');
+            document.getElementById('pr_cotDetails').classList.toggle('hidden', isOn);
+        }
+
         function pr_toggleMarginal() {
             const isYes = document.querySelector('input[name="pr_marginal_toggle"]:checked').value === 'yes';
             const inputField = document.getElementById('pr_marginal_desc');
@@ -1164,7 +1187,36 @@
             const sHtml = nextStep++;
             const sEdit = nextStep;
 
+            const includeCot = document.getElementById('pr_cotToggle').getAttribute('data-on') === 'true';
+
             let p = '';
+
+            // ── STEP 0: INTERNAL REPORT (Chain of Thought) ──────────────────
+            if (includeCot) {
+                p += `========================\nשלב 0: תכנון פנימי — אין לכלול בפלט ה-HTML\n========================\n`;
+                p += `לפני שתתחיל לכתוב את קוד ה-HTML, כתוב תכנון פנימי מפורט בפורמט הבא.\n`;
+                p += `חשוב: בלוק זה מופיע בתשובה כטקסט רגיל בלבד — אסור שיופיע בתוך קוד ה-HTML.\n\n`;
+                p += `## ניתוח סינון\n`;
+                p += `- כמה שורות עברו את הסינון וכמה נפסלו\n`;
+                p += `- פירוט סיבות הפסילה לפי קטגוריה (שפה / החרגות / מקוריות / טקסט קצר / לא רלוונטי)\n`;
+                p += `- האם זוהו בעיות איכות בנתונים שכדאי לציין\n\n`;
+                p += `## מיפוי נושאים\n`;
+                p += `- רשימת הנושאים שזוהו לפני מיזוג, והסבר על כל קיבוץ\n`;
+                p += `- אם מוזגו נושאים — ציין אילו ומדוע (חפיפה > 60%)\n`;
+                p += `- נושאים שנפלטו לשוליים ומדוע לא עלו לרמה מרכזית\n\n`;
+                p += `## החלטות סנטימנט\n`;
+                p += `- הסבר לכל נושא כיצד הגעת לסנטימנט הדומיננטי ולעוצמתו\n`;
+                p += `- ציין מקרים גבוליים (פריטים שהיה קשה לסווג) והחלטתך\n`;
+                p += `- אם סנטימנט היה מפוצל שווה — הסבר מדוע סווג כ"מעורב"\n\n`;
+                p += `## התאמה לקהל היעד\n`;
+                p += `- תאר כיצד התאמת את שפת הדוח, רמת הפירוט והדגשים לקהל: ${effectiveAudience}\n`;
+                p += `- ציין אם בחרת להדגיש / להסתיר מידע מסוים בהתאם לקהל\n\n`;
+                p += `## בדיקת קישורים\n`;
+                p += `- רשום את כל ה-URL שבחרת לכל נושא\n`;
+                p += `- לכל URL — אמת שהוא מוחלט (מתחיל ב-http/https) ושאינו מופיע פעמיים\n`;
+                p += `- סמן V/X ליד כל URL לפי תקינותו\n\n`;
+                p += `רק לאחר השלמת כל הסעיפים לעיל — התחל לכתוב את ה-HTML.\n\n`;
+            }
 
             // ── HEADER ──────────────────────────────────────────────────────
             p += `========================\nהגדרות ניתוח דינמיות\n========================\n`;

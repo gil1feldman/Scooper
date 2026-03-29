@@ -885,14 +885,18 @@
         })();
 
         // =====================================================================
-        // 3. TEXT CLASSIFIER
+        // 3. TEXT CLASSIFIER — FIXED
         // =====================================================================
         (function initClassifier() {
             const COLORS = ['#ec4899','#a855f7','#22d3ee','#f59e0b','#10b981','#f97316','#6366f1','#ef4444','#84cc16','#06b6d4'];
             let cl_rawData = [], cl_allColumns = [], cl_categories = [], cl_searchCols = [], cl_selectedCols = [], cl_classifiedData = [], cl_dateColumns = new Set();
-            let cl_outputMode = 'binary';
 
-            window.cl_outputMode = 'binary';
+            // ── FIX: flush any live edits from the DOM into cl_categories before every re-render ──
+            function cl_flushNamesFromDOM() {
+                document.querySelectorAll('.cl-cat-title').forEach((input, i) => {
+                    if (cl_categories[i]) cl_categories[i].name = input.value;
+                });
+            }
 
             function clEl(id) { return document.getElementById(id); }
             function cl_showStatus(id, type, msg) { const el = clEl(id); el.className = `cl-status ${type}`; el.textContent = msg; el.style.display = 'block'; }
@@ -955,8 +959,11 @@
                 reader.readAsBinaryString(file);
             }
 
-            // Dictionary
+            // ── Dictionary ──────────────────────────────────────────────────
             function cl_renderDictGrid() {
+                // FIX: persist any unsaved name edits before rebuilding the DOM
+                cl_flushNamesFromDOM();
+
                 const grid = clEl('cl_dictGrid'); grid.innerHTML = '';
                 cl_categories.forEach((cat, i) => {
                     const div = document.createElement('div');
@@ -965,37 +972,117 @@
                         <button class="cl-del-cat-btn" onclick="cl_deleteCategory(${i})" title="מחק קטגוריה">✕</button>
                         <div class="cl-cat-header">
                             <span class="cl-cat-dot" style="background:${cat.color}"></span>
-                            <input class="cl-cat-title" value="${cat.name}" placeholder="שם קטגוריה" oninput="cl_categories[${i}].name=this.value" />
+                            <input class="cl-cat-title" value="${cat.name.replace(/"/g, '&quot;')}" placeholder="שם קטגוריה" data-cat-idx="${i}" />
                         </div>
-                        <div id="cl_tags-${i}">${cat.words.map((w,j)=>cl_wordTag(w,i,j)).join('')}</div>
+                        <div id="cl_tags-${i}">${cat.words.map((w,j) => cl_wordTag(w,i,j)).join('')}</div>
                         <div class="cl-word-add-row">
-                            <input class="cl-word-input" id="cl_wi-${i}" placeholder="הוסף מילה..." onkeydown="if(event.key==='Enter')cl_addWord(${i})">
-                            <button class="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-pink-600/70 text-white hover:bg-pink-500 transition text-sm font-bold" onclick="cl_addWord(${i})">+</button>
+                            <input class="cl-word-input" id="cl_wi-${i}" placeholder="הוסף מילה..." data-cat-idx="${i}">
+                            <button class="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-pink-600/70 text-white hover:bg-pink-500 transition text-sm font-bold" data-add-cat="${i}">+</button>
                         </div>`;
                     grid.appendChild(div);
                 });
                 lucide.createIcons();
             }
 
-            function cl_wordTag(w, ci, wi) { return `<span class="cl-word-tag"><span class="cl-word-del" onclick="cl_removeWord(${ci},${wi})">✕</span>${w}</span>`; }
+            // ── FIX: delegate all dict-grid events to avoid inline onclick index drift ──
+            clEl('cl_dictGrid').addEventListener('input', function(e) {
+                // Category name input
+                const titleInput = e.target.closest('.cl-cat-title');
+                if (titleInput) {
+                    const idx = parseInt(titleInput.dataset.catIdx, 10);
+                    if (!isNaN(idx) && cl_categories[idx]) cl_categories[idx].name = titleInput.value;
+                }
+            });
 
-            window.cl_addWord = function(ci) {
-                const inp = clEl(`cl_wi-${ci}`); const val = inp.value.trim(); if (!val) return;
-                val.split(/[,،]+/).map(w => w.trim()).filter(Boolean).forEach(w => { if (!cl_categories[ci].words.includes(w)) cl_categories[ci].words.push(w); });
-                inp.value = ''; cl_renderDictGrid();
-                setTimeout(() => { const el = clEl(`cl_wi-${ci}`); if(el) el.focus(); }, 0);
+            clEl('cl_dictGrid').addEventListener('keydown', function(e) {
+                // Enter in word-add input
+                const wordInput = e.target.closest('.cl-word-input');
+                if (wordInput && e.key === 'Enter') {
+                    const idx = parseInt(wordInput.dataset.catIdx, 10);
+                    if (!isNaN(idx)) cl_addWordAt(idx);
+                }
+            });
+
+            clEl('cl_dictGrid').addEventListener('click', function(e) {
+                // Add-word button
+                const addBtn = e.target.closest('[data-add-cat]');
+                if (addBtn) {
+                    const idx = parseInt(addBtn.dataset.addCat, 10);
+                    if (!isNaN(idx)) cl_addWordAt(idx);
+                    return;
+                }
+                // Delete-word button
+                const delWord = e.target.closest('.cl-word-del');
+                if (delWord) {
+                    const ci = parseInt(delWord.dataset.ci, 10);
+                    const wi = parseInt(delWord.dataset.wi, 10);
+                    if (!isNaN(ci) && !isNaN(wi)) cl_removeWord(ci, wi);
+                    return;
+                }
+                // Delete-category button
+                const delCat = e.target.closest('.cl-del-cat-btn');
+                if (delCat) {
+                    // find which category this button belongs to
+                    const catEl = delCat.closest('.cl-category');
+                    const allCats = Array.from(clEl('cl_dictGrid').querySelectorAll('.cl-category'));
+                    const idx = allCats.indexOf(catEl);
+                    if (idx !== -1) cl_deleteCategory(idx);
+                }
+            });
+
+            function cl_wordTag(w, ci, wi) {
+                const safeW = w.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                return `<span class="cl-word-tag"><span class="cl-word-del" data-ci="${ci}" data-wi="${wi}">✕</span>${safeW}</span>`;
+            }
+
+            // ── FIX: addWordAt — flushes names, adds word, re-renders, restores focus ──
+            function cl_addWordAt(ci) {
+                const inp = clEl(`cl_wi-${ci}`);
+                if (!inp) return;
+                const val = inp.value.trim();
+                if (!val) return;
+                cl_flushNamesFromDOM(); // persist any name edits before re-render
+                val.split(/[,،]+/).map(w => w.trim()).filter(Boolean).forEach(w => {
+                    if (!cl_categories[ci].words.includes(w)) cl_categories[ci].words.push(w);
+                });
+                cl_renderDictGrid();
+                // restore focus to the same category's word input
+                setTimeout(() => { const el = clEl(`cl_wi-${ci}`); if (el) el.focus(); }, 0);
+            }
+
+            function cl_removeWord(ci, wi) {
+                cl_flushNamesFromDOM();
+                cl_categories[ci].words.splice(wi, 1);
+                cl_renderDictGrid();
+            }
+
+            window.cl_deleteCategory = function(i) {
+                cl_flushNamesFromDOM();
+                cl_categories.splice(i, 1);
+                cl_renderDictGrid();
             };
-            window.cl_removeWord = function(ci, wi) { cl_categories[ci].words.splice(wi, 1); cl_renderDictGrid(); };
-            window.cl_deleteCategory = function(i) { cl_categories.splice(i, 1); cl_renderDictGrid(); };
+
             window.cl_addCategory = function() {
+                cl_flushNamesFromDOM();
                 cl_categories.push({ name: `קטגוריה ${cl_categories.length + 1}`, words: [], color: COLORS[cl_categories.length % COLORS.length] });
                 cl_renderDictGrid();
-                setTimeout(() => { const inputs = document.querySelectorAll('.cl-cat-title'); if (inputs.length) inputs[inputs.length-1].focus(); }, 0);
+                setTimeout(() => {
+                    const inputs = document.querySelectorAll('.cl-cat-title');
+                    if (inputs.length) inputs[inputs.length - 1].focus();
+                }, 0);
             };
-            window.cl_clearAllCategories = function() { if (confirm('למחוק את כל הקטגוריות?')) { cl_categories = []; cl_renderDictGrid(); } };
-            window.cl_goToStep3 = function() { cl_activateStep(3); cl_renderSearchColGrid(); };
 
-            // Search cols
+            window.cl_clearAllCategories = function() {
+                if (confirm('למחוק את כל הקטגוריות?')) { cl_categories = []; cl_renderDictGrid(); }
+            };
+
+            window.cl_goToStep3 = function() {
+                cl_flushNamesFromDOM();
+                cl_activateStep(3);
+                cl_renderSearchColGrid();
+            };
+
+            // ── Search cols ──────────────────────────────────────────────────
             function cl_renderSearchColGrid() {
                 const grid = clEl('cl_searchColGrid'); grid.innerHTML = '';
                 cl_allColumns.forEach(col => {
@@ -1012,7 +1099,7 @@
             window.cl_deselectAllSearchCols = function() { cl_searchCols = []; cl_renderSearchColGrid(); };
             window.cl_goToStep4 = function() { cl_activateStep(4); cl_renderColGrid(); };
 
-            // Export cols
+            // ── Export cols ──────────────────────────────────────────────────
             function cl_renderColGrid() {
                 const grid = clEl('cl_colGrid'); grid.innerHTML = '';
                 cl_allColumns.forEach(col => {
@@ -1044,6 +1131,7 @@
             }
 
             window.cl_runClassification = function() {
+                cl_flushNamesFromDOM();
                 const mode = document.querySelector('input[name="cl_outputMode"]:checked')?.value || 'binary';
                 if (!cl_categories.length) { cl_showStatus('cl_resultStatus', 'error', 'אין קטגוריות במילון'); return; }
                 if (!cl_searchCols.length) { cl_showStatus('cl_resultStatus', 'error', 'לא נבחרו עמודות חיפוש'); return; }
@@ -1121,6 +1209,7 @@
             }
 
             window.cl_exportExcel = function() {
+                cl_flushNamesFromDOM();
                 if (!cl_classifiedData.length) return;
                 const headers = Object.keys(cl_classifiedData[0]);
                 const ws = XLSX.utils.json_to_sheet(cl_classifiedData);
@@ -1138,7 +1227,7 @@
         })();
 
         // =====================================================================
-        // 4. PROMPT GENERATOR — UPDATED
+        // 4. PROMPT GENERATOR
         // =====================================================================
         function pr_toggleCot() {
             const toggle = document.getElementById('pr_cotToggle');
@@ -1175,11 +1264,9 @@
             const includeMarginal = document.querySelector('input[name="pr_marginal_toggle"]:checked').value === 'yes';
             const marginalDesc = document.getElementById('pr_marginal_desc').value;
 
-            // Audience logic: empty = default (social media users)
             const hasExplicitAudience = audienceRaw.trim() !== '';
             const effectiveAudience   = hasExplicitAudience ? audienceRaw.trim() : 'גולשים ברשתות חברתיות';
 
-            // Dynamic step numbering
             const sStep = { topics: 3, dist: 4, summary: 5, links: 6 };
             let nextStep = 7;
             const sMarginal = includeMarginal ? nextStep++ : null;
@@ -1191,7 +1278,6 @@
 
             let p = '';
 
-            // ── STEP 0: INTERNAL REPORT (Chain of Thought) ──────────────────
             if (includeCot) {
                 p += `========================\nשלב 0: תכנון פנימי — אין לכלול בפלט ה-HTML\n========================\n`;
                 p += `לפני שתתחיל לכתוב את קוד ה-HTML, כתוב תכנון פנימי מפורט בפורמט הבא.\n`;
@@ -1218,7 +1304,6 @@
                 p += `רק לאחר השלמת כל הסעיפים לעיל — התחל לכתוב את ה-HTML.\n\n`;
             }
 
-            // ── HEADER ──────────────────────────────────────────────────────
             p += `========================\nהגדרות ניתוח דינמיות\n========================\n`;
             p += `נושא הניתוח: ${topic}\n`;
             p += `קהל היעד לדו"ח: ${effectiveAudience}\n`;
@@ -1227,7 +1312,6 @@
             p += `מספר נושאים מרכזיים להפקה: ${num_topics}\n`;
             p += `החרגות תוכן (לסנן החוצה): ${exclusions}\n\n`;
 
-            // ── DEFAULT AUDIENCE ────────────────────────────────────────────
             p += `========================\nהגדרות ברירת מחדל\n========================\n`;
             if (!hasExplicitAudience) {
                 p += `קהל היעד לא הוגדר — נעשה שימוש בברירת המחדל: גולשים ברשתות חברתיות (שפה נגישה, ללא ז'רגון ניהולי).\n`;
@@ -1238,18 +1322,15 @@
             p += `- גולשי רשתות חברתיות: נגיש, ויזואלי, שפה יומיומית.\n`;
             p += `- צוותי שירות / תפעול: פרקטי, ממוקד פעולות נדרשות.\n\n`;
 
-            // ── ROLE ────────────────────────────────────────────────────────
             p += `========================\nתפקיד ויעדים\n========================\n`;
             p += `אתה ${role} המתמחה בניתוח תוכן מרשתות חברתיות.\n`;
             p += `הקלט הוא קובץ טבלאי שבו כל שורה מייצגת פריט תוכן, וכל עמודה מייצגת מאפיין, מחבר או מדדי ביצוע.\n`;
             p += `מטרתך היא להפיק ניתוח שיח איכותי, מבוסס נתונים ומותאם לקהל היעד, סביב הנושא שהוגדר תוך התייחסות למיקוד האנליטי.\n\n`;
 
-            // ── SPECIAL NOTES ───────────────────────────────────────────────
             if (generalNotes && generalNotes.trim() !== '') {
                 p += `========================\nהנחיות והערות מיוחדות\n========================\n${generalNotes}\n\n`;
             }
 
-            // ── STEP 1: FILTERING ───────────────────────────────────────────
             p += `========================\nשלב 1: סינון ראשוני של הנתונים\n========================\n`;
             p += `בצע סינון מחמיר של הרשומות לפי הכללים הבאים:\n`;
             p += `1. שפה: כלול אך ורק תוכן בשפה: ${language}.\n`;
@@ -1258,7 +1339,6 @@
             p += `4. טקסט מהותי: כלול רק פריטים הכוללים טקסט מהותי — החרג אמוג'ים בלבד, סיסמאות, hashtag בלבד, וטקסט קצר מ-10 תווים.\n`;
             p += `5. רלוונטיות: החרג פריטים שאינם קשורים לנושא הניתוח, גם אם עברו את שאר הסינונים.\n\n`;
 
-            // ── STEP 2: SCORING ─────────────────────────────────────────────
             p += `========================\nשלב 2: חישוב משקל לכל פריט תוכן\n========================\n`;
             p += `חשב ציון השפעה משוקלל פנימי (אין להציג את החישוב בפלט):\n`;
             p += `- ${pEng}% משקל למעורבות (לייקים, תגובות, שיתופים).\n`;
@@ -1266,7 +1346,6 @@
             p += `- ${pBase}% משקל בסיס לעצם ההופעה.\n`;
             p += `השתמש בציון זה לקביעת הדוגמאות המייצגות ולמיון הנושאים לפי השפעה.\n\n`;
 
-            // ── STEP 3: TOPICS ──────────────────────────────────────────────
             p += `========================\nשלב ${sStep.topics}: זיהוי וקיבוץ נושאים\n========================\n`;
             p += `קבץ את פריטי התוכן המשוקללים ל-עד ${num_topics} נושאים מרכזיים בלבד.\n`;
             p += `- נושא מייצג *מה* מדברים עליו (לא איך). עמדות שונות יקובצו תחת אותו נושא.\n`;
@@ -1274,7 +1353,6 @@
             p += `- אם שני נושאים חופפים מעל 60% — מזג אותם.\n`;
             p += `- מיין את הנושאים מהמשפיע ביותר לפחות משפיע לפי ציון ההשפעה המשוקלל.\n\n`;
 
-            // ── STEP 4: DISTRIBUTION + SENTIMENT ───────────────────────────
             p += `========================\nשלב ${sStep.dist}: התפלגות נושאים וסנטימנט\n========================\n`;
             p += `לאחר זיהוי הנושאים, הפק עבור כל נושא:\n\n`;
             p += `א. נפח יחסי:\n`;
@@ -1289,7 +1367,6 @@
             p += `- הצג את ההתפלגות כבר גרפי אופקיים (HTML/CSS בלבד, ללא ספריות חיצוניות).\n`;
             p += `- הצג את הסנטימנט הדומיננטי כ-badge צבעוני (אדום=שלילי, ירוק=חיובי, אפור=ניטרלי, כתום=מעורב).\n\n`;
 
-            // ── STEP 5: SUMMARIES ───────────────────────────────────────────
             p += `========================\nשלב ${sStep.summary}: פסקאות סיכום לנושאים המרכזיים\n========================\n`;
             p += `עבור כל נושא, כתוב פסקת סיכום אנליטית הכוללת:\n`;
             p += `- תיאור קצר וברור של הנושא.\n`;
@@ -1298,7 +1375,6 @@
             p += `- אינדיקציה לחשיבות הנושא בשיח הכולל.\n`;
             p += `- השלכה עסקית / תפעולית רלוונטית (מותאמת לקהל היעד).\n\n`;
 
-            // ── STEP 6: LINKS ───────────────────────────────────────────────
             p += `========================\nשלב ${sStep.links}: הפניות לתוכן תומך\n========================\n`;
             p += `בסוף כל פסקת נושא הוסף: "דוגמאות לתוכן מייצג:"\n`;
             p += `בחר 2-3 פריטים בעלי ציון השפעה גבוה במיוחד.\n\n`;
@@ -1314,7 +1390,6 @@
             p += `כלל אחד לסיכום: הטקסט הנראה בתוך תגית <a> חייב להיות זהה לחלוטין ל-URL שב-href.\n`;
             p += `אם URL אינו עומד בכל התנאים — אל תציג את הפריט כלל.\n\n`;
 
-            // ── STEP 7 (optional): MARGINAL TOPICS ─────────────────────────
             if (includeMarginal) {
                 p += `========================\nשלב ${sMarginal}: זיהוי נושאים שוליים\n========================\n`;
                 p += `${marginalDesc}.\n`;
@@ -1323,14 +1398,12 @@
                 p += `- ציין לכל נושא שולי: מדוע לא עלה לרמת נושא מרכזי (נפח נמוך / השפעה נמוכה / חד-פעמי).\n\n`;
             }
 
-            // ── STEP: EXECUTIVE SUMMARY ─────────────────────────────────────
             p += `========================\nשלב ${sSummaryExec}: תקציר מנהלים / סיכום כולל\n========================\n`;
             p += `בראש הדו"ח (לאחר הכותרת ולפני הנושאים) הוסף תקציר מותאם לקהל היעד:\n`;
             p += `- הנהלה בכירה: 3-4 נקודות bullet של ממצאים קריטיים והמלצות פעולה.\n`;
             p += `- גולשי רשתות חברתיות: 2-3 שורות נגישות המסכמות את "מה קורה כרגע".\n`;
             p += `- צוותי שירות: רשימת פעולות מומלצות ממוינת לפי דחיפות.\n\n`;
 
-            // ── STEP: HTML OUTPUT ────────────────────────────────────────────
             p += `========================\nשלב ${sHtml}: הפקת פלט כקובץ HTML בלבד\n========================\n`;
             p += `הפלט הסופי חייב להיות HTML מלא בלבד, ללא כל טקסט מחוץ לו.\n`;
             p += `מבנה נדרש:\n`;
@@ -1352,7 +1425,6 @@
             p += `- CSS פנימי בלבד (ללא ספריות חיצוניות, ללא Tailwind CDN)\n`;
             p += `- רספונסיבי למובייל\n\n`;
 
-            // ── STEP: EDIT/EXPORT INTERFACE ──────────────────────────────────
             p += `========================\nשלב ${sEdit}: ממשק עריכה ויצוא בתוך ה-HTML\n========================\n`;
             p += `חובה לשלב ב-HTML את התכונות הבאות:\n\n`;
             p += `1. כפתור "מצב עריכה":\n`;

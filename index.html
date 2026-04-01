@@ -180,6 +180,19 @@
         .cl-status.success { background: rgba(52,211,153,0.1); color: #6ee7b7; border: 1px solid rgba(52,211,153,0.2); }
         .cl-status.error   { background: rgba(251,113,133,0.1); color: #fda4af; border: 1px solid rgba(251,113,133,0.2); }
 
+        /* col-filter input */
+        .cl-col-filter-input {
+            background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 10px; color: #fff; font-family: 'Heebo', sans-serif;
+            font-size: 0.82rem; padding: 6px 12px; outline: none;
+            transition: border-color 0.2s; direction: rtl;
+        }
+        .cl-col-filter-input:focus { border-color: rgba(236,72,153,0.5); }
+        .cl-col-filter-input::placeholder { color: rgba(255,255,255,0.3); }
+        .cl-col-chip.match { border-color: rgba(236,72,153,0.8) !important; background: rgba(236,72,153,0.18) !important; color: #fff !important; box-shadow: 0 0 0 2px rgba(236,72,153,0.2); }
+        .cl-chip-match-text { background: rgba(236,72,153,0.5); border-radius: 3px; padding: 0 2px; font-weight: 700; color: #fff; }
+        .cl-col-chip.no-match { opacity: 0.2 !important; }
+
         /* Matrix */
         .cl-matrix th { background: rgba(0,0,0,0.6); color: rgba(255,255,255,0.55); font-size: 0.75rem; white-space: nowrap; padding: 8px 12px; text-align: center; }
         .cl-matrix th.row-head { text-align: right; }
@@ -487,12 +500,15 @@
                 <span class="text-[10px] font-bold text-pink-300/70 uppercase tracking-widest mr-auto">STEP 3</span>
             </div>
             <p class="text-slate-400 text-sm mb-4">באילו עמודות לחפש את ביטויי המילון? בחר רק עמודות טקסטואליות רלוונטיות.</p>
+            <!-- TOOLBAR: buttons + count + filter -->
+            <div class="flex flex-wrap items-center gap-2 mb-3">
+                <button onclick="cl_selectAllSearchCols()" class="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold bg-white/5 hover:bg-white/10 border border-white/10 text-slate-400 hover:text-white transition">בחר הכל</button>
+                <button onclick="cl_deselectAllSearchCols()" class="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold bg-white/5 hover:bg-white/10 border border-white/10 text-slate-400 hover:text-white transition">נקה בחירה</button>
+                <span id="cl_searchColCount" class="text-xs text-pink-300/80 font-semibold"></span>
+                <input id="cl_searchColFilter" type="text" placeholder="חפש עמודה..." oninput="cl_renderSearchColGrid()" class="cl-col-filter-input mr-auto w-44" />
+            </div>
             <div class="flex flex-wrap gap-2" id="cl_searchColGrid"></div>
-            <div class="flex justify-between items-center mt-4 pt-4 border-t border-white/10">
-                <div class="flex gap-2">
-                    <button onclick="cl_selectAllSearchCols()" class="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold bg-white/5 hover:bg-white/10 border border-white/10 text-slate-400 hover:text-white transition">בחר הכל</button>
-                    <button onclick="cl_deselectAllSearchCols()" class="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold bg-white/5 hover:bg-white/10 border border-white/10 text-slate-400 hover:text-white transition">נקה בחירה</button>
-                </div>
+            <div class="flex justify-end items-center mt-4 pt-4 border-t border-white/10">
                 <button onclick="cl_goToStep4()" class="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-bold bg-gradient-to-l from-pink-500/80 to-purple-600/80 text-white hover:opacity-90 transition">המשך ←</button>
             </div>
         </div>
@@ -507,12 +523,15 @@
                 <span class="text-[10px] font-bold text-pink-300/70 uppercase tracking-widest mr-auto">STEP 4</span>
             </div>
             <p class="text-slate-400 text-sm mb-4">בחר אילו עמודות מהקובץ המקורי לכלול בפלט (עמודות הסיווג יתווספו אוטומטית).</p>
+            <!-- TOOLBAR: buttons + count + filter -->
+            <div class="flex flex-wrap items-center gap-2 mb-3">
+                <button onclick="cl_selectAllCols()" class="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold bg-white/5 hover:bg-white/10 border border-white/10 text-slate-400 hover:text-white transition">בחר הכל</button>
+                <button onclick="cl_deselectAllCols()" class="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold bg-white/5 hover:bg-white/10 border border-white/10 text-slate-400 hover:text-white transition">נקה בחירה</button>
+                <span id="cl_exportColCount" class="text-xs text-pink-300/80 font-semibold"></span>
+                <input id="cl_exportColFilter" type="text" placeholder="חפש עמודה..." oninput="cl_renderColGrid()" class="cl-col-filter-input mr-auto w-44" />
+            </div>
             <div class="flex flex-wrap gap-2" id="cl_colGrid"></div>
-            <div class="flex justify-between items-center mt-4 pt-4 border-t border-white/10">
-                <div class="flex gap-2">
-                    <button onclick="cl_selectAllCols()" class="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold bg-white/5 hover:bg-white/10 border border-white/10 text-slate-400 hover:text-white transition">בחר הכל</button>
-                    <button onclick="cl_deselectAllCols()" class="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold bg-white/5 hover:bg-white/10 border border-white/10 text-slate-400 hover:text-white transition">נקה בחירה</button>
-                </div>
+            <div class="flex justify-end items-center mt-4 pt-4 border-t border-white/10">
                 <button onclick="cl_goToStep5()" class="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-bold bg-gradient-to-l from-pink-500/80 to-purple-600/80 text-white hover:opacity-90 transition">המשך ←</button>
             </div>
         </div>
@@ -885,13 +904,12 @@
         })();
 
         // =====================================================================
-        // 3. TEXT CLASSIFIER — FIXED
+        // 3. TEXT CLASSIFIER
         // =====================================================================
         (function initClassifier() {
             const COLORS = ['#ec4899','#a855f7','#22d3ee','#f59e0b','#10b981','#f97316','#6366f1','#ef4444','#84cc16','#06b6d4'];
             let cl_rawData = [], cl_allColumns = [], cl_categories = [], cl_searchCols = [], cl_selectedCols = [], cl_classifiedData = [], cl_dateColumns = new Set();
 
-            // ── FIX: flush any live edits from the DOM into cl_categories before every re-render ──
             function cl_flushNamesFromDOM() {
                 document.querySelectorAll('.cl-cat-title').forEach((input, i) => {
                     if (cl_categories[i]) cl_categories[i].name = input.value;
@@ -961,9 +979,7 @@
 
             // ── Dictionary ──────────────────────────────────────────────────
             function cl_renderDictGrid() {
-                // FIX: persist any unsaved name edits before rebuilding the DOM
                 cl_flushNamesFromDOM();
-
                 const grid = clEl('cl_dictGrid'); grid.innerHTML = '';
                 cl_categories.forEach((cat, i) => {
                     const div = document.createElement('div');
@@ -984,9 +1000,7 @@
                 lucide.createIcons();
             }
 
-            // ── FIX: delegate all dict-grid events to avoid inline onclick index drift ──
             clEl('cl_dictGrid').addEventListener('input', function(e) {
-                // Category name input
                 const titleInput = e.target.closest('.cl-cat-title');
                 if (titleInput) {
                     const idx = parseInt(titleInput.dataset.catIdx, 10);
@@ -995,7 +1009,6 @@
             });
 
             clEl('cl_dictGrid').addEventListener('keydown', function(e) {
-                // Enter in word-add input
                 const wordInput = e.target.closest('.cl-word-input');
                 if (wordInput && e.key === 'Enter') {
                     const idx = parseInt(wordInput.dataset.catIdx, 10);
@@ -1004,14 +1017,12 @@
             });
 
             clEl('cl_dictGrid').addEventListener('click', function(e) {
-                // Add-word button
                 const addBtn = e.target.closest('[data-add-cat]');
                 if (addBtn) {
                     const idx = parseInt(addBtn.dataset.addCat, 10);
                     if (!isNaN(idx)) cl_addWordAt(idx);
                     return;
                 }
-                // Delete-word button
                 const delWord = e.target.closest('.cl-word-del');
                 if (delWord) {
                     const ci = parseInt(delWord.dataset.ci, 10);
@@ -1019,10 +1030,8 @@
                     if (!isNaN(ci) && !isNaN(wi)) cl_removeWord(ci, wi);
                     return;
                 }
-                // Delete-category button
                 const delCat = e.target.closest('.cl-del-cat-btn');
                 if (delCat) {
-                    // find which category this button belongs to
                     const catEl = delCat.closest('.cl-category');
                     const allCats = Array.from(clEl('cl_dictGrid').querySelectorAll('.cl-category'));
                     const idx = allCats.indexOf(catEl);
@@ -1035,18 +1044,16 @@
                 return `<span class="cl-word-tag"><span class="cl-word-del" data-ci="${ci}" data-wi="${wi}">✕</span>${safeW}</span>`;
             }
 
-            // ── FIX: addWordAt — flushes names, adds word, re-renders, restores focus ──
             function cl_addWordAt(ci) {
                 const inp = clEl(`cl_wi-${ci}`);
                 if (!inp) return;
                 const val = inp.value.trim();
                 if (!val) return;
-                cl_flushNamesFromDOM(); // persist any name edits before re-render
+                cl_flushNamesFromDOM();
                 val.split(/[,،]+/).map(w => w.trim()).filter(Boolean).forEach(w => {
                     if (!cl_categories[ci].words.includes(w)) cl_categories[ci].words.push(w);
                 });
                 cl_renderDictGrid();
-                // restore focus to the same category's word input
                 setTimeout(() => { const el = clEl(`cl_wi-${ci}`); if (el) el.focus(); }, 0);
             }
 
@@ -1083,18 +1090,48 @@
             };
 
             // ── Search cols ──────────────────────────────────────────────────
+            function cl_buildChipLabel(text, query) {
+                // Returns a DocumentFragment with optional highlighted match span
+                const frag = document.createDocumentFragment();
+                if (!query) { frag.appendChild(document.createTextNode(text)); return frag; }
+                const lc = text.toLowerCase();
+                const lcQ = query.toLowerCase();
+                const idx = lc.indexOf(lcQ);
+                if (idx === -1) { frag.appendChild(document.createTextNode(text)); return frag; }
+                frag.appendChild(document.createTextNode(text.slice(0, idx)));
+                const mark = document.createElement('span');
+                mark.className = 'cl-chip-match-text';
+                mark.textContent = text.slice(idx, idx + query.length);
+                frag.appendChild(mark);
+                frag.appendChild(document.createTextNode(text.slice(idx + query.length)));
+                return frag;
+            }
             function cl_renderSearchColGrid() {
                 const grid = clEl('cl_searchColGrid'); grid.innerHTML = '';
+                const filterEl = clEl('cl_searchColFilter');
+                const filterVal = filterEl ? filterEl.value.trim() : '';
                 cl_allColumns.forEach(col => {
                     const isDate = cl_dateColumns.has(col);
+                    const isMatch = !filterVal || col.toLowerCase().includes(filterVal.toLowerCase());
                     const chip = document.createElement('div');
-                    chip.className = 'cl-col-chip' + (cl_searchCols.includes(col) ? ' selected' : '');
+                    const classes = ['cl-col-chip'];
+                    if (cl_searchCols.includes(col)) classes.push('selected');
+                    if (filterVal) classes.push(isMatch ? 'match' : 'no-match');
+                    chip.className = classes.join(' ');
                     chip.title = isDate ? 'עמודת תאריך — לא מומלץ לחיפוש טקסט' : '';
-                    chip.innerHTML = `<span style="font-size:0.7rem">${cl_searchCols.includes(col) ? '✓' : ''}</span>${col}${isDate ? ' 📅' : ''}`;
+                    const tick = document.createElement('span');
+                    tick.style.fontSize = '0.7rem';
+                    tick.textContent = cl_searchCols.includes(col) ? '✓' : '';
+                    chip.appendChild(tick);
+                    chip.appendChild(cl_buildChipLabel(col, filterVal));
+                    if (isDate) chip.appendChild(document.createTextNode(' 📅'));
                     chip.onclick = () => { const idx = cl_searchCols.indexOf(col); if (idx > -1) cl_searchCols.splice(idx, 1); else cl_searchCols.push(col); cl_renderSearchColGrid(); };
                     grid.appendChild(chip);
                 });
+                const countEl = clEl('cl_searchColCount');
+                if (countEl) countEl.textContent = `${cl_searchCols.length} מתוך ${cl_allColumns.length} נבחרו`;
             }
+            window.cl_renderSearchColGrid = cl_renderSearchColGrid;
             window.cl_selectAllSearchCols = function() { cl_searchCols = [...cl_allColumns]; cl_renderSearchColGrid(); };
             window.cl_deselectAllSearchCols = function() { cl_searchCols = []; cl_renderSearchColGrid(); };
             window.cl_goToStep4 = function() { cl_activateStep(4); cl_renderColGrid(); };
@@ -1102,14 +1139,27 @@
             // ── Export cols ──────────────────────────────────────────────────
             function cl_renderColGrid() {
                 const grid = clEl('cl_colGrid'); grid.innerHTML = '';
+                const filterEl = clEl('cl_exportColFilter');
+                const filterVal = filterEl ? filterEl.value.trim() : '';
                 cl_allColumns.forEach(col => {
+                    const isMatch = !filterVal || col.toLowerCase().includes(filterVal.toLowerCase());
                     const chip = document.createElement('div');
-                    chip.className = 'cl-col-chip' + (cl_selectedCols.includes(col) ? ' selected' : '');
-                    chip.innerHTML = `<span style="font-size:0.7rem">${cl_selectedCols.includes(col) ? '✓' : ''}</span>${col}`;
+                    const classes = ['cl-col-chip'];
+                    if (cl_selectedCols.includes(col)) classes.push('selected');
+                    if (filterVal) classes.push(isMatch ? 'match' : 'no-match');
+                    chip.className = classes.join(' ');
+                    const tick = document.createElement('span');
+                    tick.style.fontSize = '0.7rem';
+                    tick.textContent = cl_selectedCols.includes(col) ? '✓' : '';
+                    chip.appendChild(tick);
+                    chip.appendChild(cl_buildChipLabel(col, filterVal));
                     chip.onclick = () => { const idx = cl_selectedCols.indexOf(col); if (idx > -1) cl_selectedCols.splice(idx, 1); else cl_selectedCols.push(col); cl_renderColGrid(); };
                     grid.appendChild(chip);
                 });
+                const countEl = clEl('cl_exportColCount');
+                if (countEl) countEl.textContent = `${cl_selectedCols.length} מתוך ${cl_allColumns.length} נבחרו`;
             }
+            window.cl_renderColGrid = cl_renderColGrid;
             window.cl_selectAllCols = function() { cl_selectedCols = [...cl_allColumns]; cl_renderColGrid(); };
             window.cl_deselectAllCols = function() { cl_selectedCols = []; cl_renderColGrid(); };
             window.cl_goToStep5 = function() { cl_activateStep(5); cl_renderPreview(); };

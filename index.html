@@ -365,12 +365,12 @@
                     <div class="space-y-3 text-sm text-slate-300">
                         <div class="flex items-center justify-between gap-3">
                             <label class="font-semibold">יעד פוסטים כולל</label>
-                            <input id="sc_totalTargetInput" type="number" min="1" value="500" class="focus-ring w-24 rounded-xl bg-black/40 border border-white/10 px-2 py-1 text-center text-white mono" />
+                            <input id="sc_totalTargetInput" type="number" min="1" value="1000" class="focus-ring w-24 rounded-xl bg-black/40 border border-white/10 px-2 py-1 text-center text-white mono" />
                         </div>
                         <div class="flex items-center justify-between gap-3">
                             <label class="font-semibold">משקל Engagement</label>
                             <div class="flex items-center gap-1">
-                                <input id="sc_engPctInput" type="number" min="0" max="100" value="50" class="focus-ring w-16 rounded-xl bg-black/40 border border-white/10 px-2 py-1 text-center text-white mono" /> %
+                                <input id="sc_engPctInput" type="number" min="0" max="100" value="90" class="focus-ring w-16 rounded-xl bg-black/40 border border-white/10 px-2 py-1 text-center text-white mono" /> %
                             </div>
                         </div>
                         <div class="rounded-xl bg-black/20 p-2 text-center mt-2 border border-white/5">
@@ -638,8 +638,8 @@
                     <div class="bg-black/20 p-4 rounded-xl border border-white/5">
                         <label class="block text-xs font-bold text-slate-300 mb-3">משקולות לציון השפעה <span class="text-[10px] font-normal text-slate-500">(יחושב אוטומטית ל-100%)</span></label>
                         <div class="flex gap-3">
-                            <div class="w-1/3"><span class="block text-[10px] text-slate-400 mb-1 text-center">מעורבות</span><input type="number" id="pr_w_eng" value="50" min="0" class="w-full p-1.5 bg-black/40 border border-white/10 rounded-lg text-center text-white text-sm" oninput="pr_generatePrompt()"></div>
-                            <div class="w-1/3"><span class="block text-[10px] text-slate-400 mb-1 text-center">חשיפת כותב</span><input type="number" id="pr_w_auth" value="40" min="0" class="w-full p-1.5 bg-black/40 border border-white/10 rounded-lg text-center text-white text-sm" oninput="pr_generatePrompt()"></div>
+                            <div class="w-1/3"><span class="block text-[10px] text-slate-400 mb-1 text-center">מעורבות</span><input type="number" id="pr_w_eng" value="80" min="0" class="w-full p-1.5 bg-black/40 border border-white/10 rounded-lg text-center text-white text-sm" oninput="pr_generatePrompt()"></div>
+                            <div class="w-1/3"><span class="block text-[10px] text-slate-400 mb-1 text-center">חשיפת כותב</span><input type="number" id="pr_w_auth" value="10" min="0" class="w-full p-1.5 bg-black/40 border border-white/10 rounded-lg text-center text-white text-sm" oninput="pr_generatePrompt()"></div>
                             <div class="w-1/3"><span class="block text-[10px] text-slate-400 mb-1 text-center">בסיס מובנה</span><input type="number" id="pr_w_base" value="10" min="0" class="w-full p-1.5 bg-black/40 border border-white/10 rounded-lg text-center text-white text-sm" oninput="pr_generatePrompt()"></div>
                         </div>
                     </div>
@@ -1091,7 +1091,6 @@
 
             // ── Search cols ──────────────────────────────────────────────────
             function cl_buildChipLabel(text, query) {
-                // Returns a DocumentFragment with optional highlighted match span
                 const frag = document.createDocumentFragment();
                 if (!query) { frag.appendChild(document.createTextNode(text)); return frag; }
                 const lc = text.toLowerCase();
@@ -1317,8 +1316,9 @@
             const hasExplicitAudience = audienceRaw.trim() !== '';
             const effectiveAudience   = hasExplicitAudience ? audienceRaw.trim() : 'גולשים ברשתות חברתיות';
 
-            const sStep = { topics: 3, dist: 4, summary: 5, links: 6 };
-            let nextStep = 7;
+            // Step numbering — new analysis guidelines block inserted after step 1
+            const sStep = { topics: 4, dist: 5, summary: 6, links: 7 };
+            let nextStep = 8;
             const sMarginal = includeMarginal ? nextStep++ : null;
             const sSummaryExec = nextStep++;
             const sHtml = nextStep++;
@@ -1389,7 +1389,34 @@
             p += `4. טקסט מהותי: כלול רק פריטים הכוללים טקסט מהותי — החרג אמוג'ים בלבד, סיסמאות, hashtag בלבד, וטקסט קצר מ-10 תווים.\n`;
             p += `5. רלוונטיות: החרג פריטים שאינם קשורים לנושא הניתוח, גם אם עברו את שאר הסינונים.\n\n`;
 
-            p += `========================\nשלב 2: חישוב משקל לכל פריט תוכן\n========================\n`;
+            // ── NEW BLOCK: הנחיות לניתוח והסקת מסקנות ──────────────────────
+            p += `========================\nשלב 2: הנחיות לניתוח והסקת מסקנות\n========================\n`;
+            p += `חובה לשמור על הכללים הבאים לאורך כל הניתוח:\n\n`;
+
+            p += `א. הפרדה מוחלטת בין יח"צ (PR) לשיח אורגני (UGC)\n`;
+            p += `זהה את מקור כל פוסט: עמודי צרכנות (כמו "חדש על המדף"), גופי תקשורת, עמודים רשמיים של מותג, או סוכנויות יח"צ — כל אלה יסווגו כ"פעילות שיווקית/יח"צ".\n`;
+            p += `אסור בהחלט להציג תוכן ממקורות אלה כ"שיח צרכנים", "מגמה צרכנית" או "תפיסה צרכנית".\n`;
+            p += `שיח אורגני = תוכן שנוצר באופן ספונטני על ידי משתמשים רגילים, ללא זיקה לגורם שיווקי.\n\n`;
+
+            p += `ב. סף מינימום להגדרת מגמה (Trend Threshold)\n`;
+            p += `אין להגדיר נושא כ"מגמה", "תופעה" או "נרטיב צרכני" אלא אם כן הוא נתמך על ידי לפחות 3 פוסטים של צרכנים אורגניים שונים ובלתי תלויים.\n`;
+            p += `אם נושא עולה מפוסט בודד — חובה לציין זאת במפורש: "מפוסט בודד שעלה בנושא נראה כי...".\n\n`;
+
+            p += `ג. פיצול ניתוח מותגים\n`;
+            p += `בכל ניתוח הכולל מותג, חובה להציג שתי פריזמות נפרדות:\n`;
+            p += `1. פעילות המותג/יח"צ — מה המותג משדר החוצה (פוסטים רשמיים, קמפיינים, הודעות לעיתונות).\n`;
+            p += `2. השיח האורגני — איך הצרכנים הרגילים באמת מגיבים או מדברים על המותג ביומיום.\n`;
+            p += `אם חסר דאטה באחת הפריזמות — ציין זאת במפורש ואל תשלים פערים מהנחות.\n\n`;
+
+            p += `ד. שקיפות בביסוס הנתונים (Evidence Checking)\n`;
+            p += `על כל מסקנה מהותית, שאל את עצמך פנימית: "כמה פוסטים שונים באמת תומכים בטענה הזו?".\n`;
+            p += `הצג את המסקנות בהלימה לעוצמת הראיות:\n`;
+            p += `- 1-2 פוסטים: "עלה ביטוי בודד / מספר קטן של פוסטים לפיהם..."\n`;
+            p += `- 3-9 פוסטים: "ניכרת מגמה ראשונית..."\n`;
+            p += `- 10+ פוסטים: "ניתן לזהות דפוס ברור..."\n\n`;
+            // ── END NEW BLOCK ─────────────────────────────────────────────────
+
+            p += `========================\nשלב 3: חישוב משקל לכל פריט תוכן\n========================\n`;
             p += `חשב ציון השפעה משוקלל פנימי (אין להציג את החישוב בפלט):\n`;
             p += `- ${pEng}% משקל למעורבות (לייקים, תגובות, שיתופים).\n`;
             p += `- ${pAuth}% משקל להשפעת הכותב (עוקבים/חשיפה).\n`;

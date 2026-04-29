@@ -500,7 +500,6 @@
                 <span class="text-[10px] font-bold text-pink-300/70 uppercase tracking-widest mr-auto">STEP 3</span>
             </div>
             <p class="text-slate-400 text-sm mb-4">באילו עמודות לחפש את ביטויי המילון? בחר רק עמודות טקסטואליות רלוונטיות.</p>
-            <!-- TOOLBAR: buttons + count + filter -->
             <div class="flex flex-wrap items-center gap-2 mb-3">
                 <button onclick="cl_selectAllSearchCols()" class="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold bg-white/5 hover:bg-white/10 border border-white/10 text-slate-400 hover:text-white transition">בחר הכל</button>
                 <button onclick="cl_deselectAllSearchCols()" class="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold bg-white/5 hover:bg-white/10 border border-white/10 text-slate-400 hover:text-white transition">נקה בחירה</button>
@@ -523,7 +522,6 @@
                 <span class="text-[10px] font-bold text-pink-300/70 uppercase tracking-widest mr-auto">STEP 4</span>
             </div>
             <p class="text-slate-400 text-sm mb-4">בחר אילו עמודות מהקובץ המקורי לכלול בפלט (עמודות הסיווג יתווספו אוטומטית).</p>
-            <!-- TOOLBAR: buttons + count + filter -->
             <div class="flex flex-wrap items-center gap-2 mb-3">
                 <button onclick="cl_selectAllCols()" class="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold bg-white/5 hover:bg-white/10 border border-white/10 text-slate-400 hover:text-white transition">בחר הכל</button>
                 <button onclick="cl_deselectAllCols()" class="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold bg-white/5 hover:bg-white/10 border border-white/10 text-slate-400 hover:text-white transition">נקה בחירה</button>
@@ -629,7 +627,8 @@
                     </div>
                     <div>
                         <label class="block text-xs font-bold text-slate-400 mb-1">החרגות (מה לסנן החוצה?)</label>
-                        <input type="text" id="pr_exclusions" value="פוסטים שעוסקים במבצעים, הנחות והגרלות" class="w-full p-2.5 bg-black/40 border border-white/10 rounded-xl text-white focus-ring text-sm" oninput="pr_generatePrompt()">
+                        <!-- CHANGE 2: updated default exclusions value -->
+                        <input type="text" id="pr_exclusions" value="שיח אינפורמטיבי על האירוע מאתרי חדשות או עיתונאים" class="w-full p-2.5 bg-black/40 border border-white/10 rounded-xl text-white focus-ring text-sm" oninput="pr_generatePrompt()">
                     </div>
                     <div>
                         <label class="block text-xs font-bold text-slate-400 mb-1">הערות והנחיות מיוחדות</label>
@@ -678,7 +677,10 @@
                     <h2 class="text-sm font-bold text-slate-300">הפרומפט שנוצר:</h2>
                     <span class="bg-purple-900/50 text-purple-200 text-[10px] font-bold px-2.5 py-1 rounded border border-purple-500/30">מתעדכן בזמן אמת</span>
                 </div>
-                <textarea id="pr_promptOutput" readonly class="w-full flex-grow min-h-[600px] p-5 bg-transparent text-pink-100/90 rounded-xl text-sm font-mono leading-relaxed outline-none resize-none border border-white/10 shadow-inner"></textarea>
+                <!-- CHANGE 4: added overflow-y-auto to enable scrolling inside the textarea panel -->
+                <div class="flex-grow overflow-y-auto">
+                    <textarea id="pr_promptOutput" readonly class="w-full h-full min-h-[600px] p-5 bg-transparent text-pink-100/90 rounded-xl text-sm font-mono leading-relaxed outline-none resize-none border border-white/10 shadow-inner"></textarea>
+                </div>
             </div>
         </div>
     </div>
@@ -927,7 +929,6 @@
                 }
             }
 
-            // Upload
             const uploadZone = clEl('cl_uploadZone');
             uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('drag-over'); });
             uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag-over'));
@@ -977,7 +978,6 @@
                 reader.readAsBinaryString(file);
             }
 
-            // ── Dictionary ──────────────────────────────────────────────────
             function cl_renderDictGrid() {
                 cl_flushNamesFromDOM();
                 const grid = clEl('cl_dictGrid'); grid.innerHTML = '';
@@ -1089,7 +1089,6 @@
                 cl_renderSearchColGrid();
             };
 
-            // ── Search cols ──────────────────────────────────────────────────
             function cl_buildChipLabel(text, query) {
                 const frag = document.createDocumentFragment();
                 if (!query) { frag.appendChild(document.createTextNode(text)); return frag; }
@@ -1135,7 +1134,6 @@
             window.cl_deselectAllSearchCols = function() { cl_searchCols = []; cl_renderSearchColGrid(); };
             window.cl_goToStep4 = function() { cl_activateStep(4); cl_renderColGrid(); };
 
-            // ── Export cols ──────────────────────────────────────────────────
             function cl_renderColGrid() {
                 const grid = clEl('cl_colGrid'); grid.innerHTML = '';
                 const filterEl = clEl('cl_exportColFilter');
@@ -1316,7 +1314,6 @@
             const hasExplicitAudience = audienceRaw.trim() !== '';
             const effectiveAudience   = hasExplicitAudience ? audienceRaw.trim() : 'גולשים ברשתות חברתיות';
 
-            // Step numbering — new analysis guidelines block inserted after step 1
             const sStep = { topics: 4, dist: 5, summary: 6, links: 7 };
             let nextStep = 8;
             const sMarginal = includeMarginal ? nextStep++ : null;
@@ -1377,6 +1374,15 @@
             p += `הקלט הוא קובץ טבלאי שבו כל שורה מייצגת פריט תוכן, וכל עמודה מייצגת מאפיין, מחבר או מדדי ביצוע.\n`;
             p += `מטרתך היא להפיק ניתוח שיח איכותי, מבוסס נתונים ומותאם לקהל היעד, סביב הנושא שהוגדר תוך התייחסות למיקוד האנליטי.\n\n`;
 
+            // CHANGE 1: no absolute numbers rule
+            p += `========================\nכלל מספרים בדוח הסופי\n========================\n`;
+            p += `חל איסור מוחלט לציין מספרים מוחלטים בגוף הדוח (כמות פוסטים, כמות תגובות, כמות שיתופים וכד').\n`;
+            p += `השתמש אך ורק באחוזים לצגי נפח (לדוגמה: "כ-30% מהשיח"), ובמינוחים יחסיים לתיאור עוצמה:\n`;
+            p += `- נפח / השפעה: הרבה / בינוני / מעט\n`;
+            p += `- סנטימנט: עיקר השיח היה חיובי / שלילי / ניטרלי / מעורב\n`;
+            p += `- מגמה: דומיננטית / ניכרת / שולית\n`;
+            p += `כלל זה חל על כל חלקי הדוח — כרטיסיות נושא, תקציר מנהלים ונושאים שוליים.\n\n`;
+
             if (generalNotes && generalNotes.trim() !== '') {
                 p += `========================\nהנחיות והערות מיוחדות\n========================\n${generalNotes}\n\n`;
             }
@@ -1389,7 +1395,6 @@
             p += `4. טקסט מהותי: כלול רק פריטים הכוללים טקסט מהותי — החרג אמוג'ים בלבד, סיסמאות, hashtag בלבד, וטקסט קצר מ-10 תווים.\n`;
             p += `5. רלוונטיות: החרג פריטים שאינם קשורים לנושא הניתוח, גם אם עברו את שאר הסינונים.\n\n`;
 
-            // ── NEW BLOCK: הנחיות לניתוח והסקת מסקנות ──────────────────────
             p += `========================\nשלב 2: הנחיות לניתוח והסקת מסקנות\n========================\n`;
             p += `חובה לשמור על הכללים הבאים לאורך כל הניתוח:\n\n`;
 
@@ -1414,7 +1419,6 @@
             p += `- 1-2 פוסטים: "עלה ביטוי בודד / מספר קטן של פוסטים לפיהם..."\n`;
             p += `- 3-9 פוסטים: "ניכרת מגמה ראשונית..."\n`;
             p += `- 10+ פוסטים: "ניתן לזהות דפוס ברור..."\n\n`;
-            // ── END NEW BLOCK ─────────────────────────────────────────────────
 
             p += `========================\nשלב 3: חישוב משקל לכל פריט תוכן\n========================\n`;
             p += `חשב ציון השפעה משוקלל פנימי (אין להציג את החישוב בפלט):\n`;
@@ -1434,7 +1438,7 @@
             p += `לאחר זיהוי הנושאים, הפק עבור כל נושא:\n\n`;
             p += `א. נפח יחסי:\n`;
             p += `- אחוז מתוך סך הפריטים הרלוונטיים (לאחר סינון).\n`;
-            p += `- מספר פריטי התוכן המשויכים לנושא.\n\n`;
+            p += `- תיאור יחסי של היקף הנושא: דומיננטי / ניכר / שולי.\n\n`;
             p += `ב. סנטימנט דומיננטי:\n`;
             p += `- סווג כל פריט תוכן לאחת מהקטגוריות: חיובי / שלילי / ניטרלי / מעורב.\n`;
             p += `- חשב את התפלגות הסנטימנט לכל נושא (אחוזים).\n`;
@@ -1444,13 +1448,17 @@
             p += `- הצג את ההתפלגות כבר גרפי אופקיים (HTML/CSS בלבד, ללא ספריות חיצוניות).\n`;
             p += `- הצג את הסנטימנט הדומיננטי כ-badge צבעוני (אדום=שלילי, ירוק=חיובי, אפור=ניטרלי, כתום=מעורב).\n\n`;
 
+            // CHANGE 3: citations added to the summary step
             p += `========================\nשלב ${sStep.summary}: פסקאות סיכום לנושאים המרכזיים\n========================\n`;
             p += `עבור כל נושא, כתוב פסקת סיכום אנליטית הכוללת:\n`;
             p += `- תיאור קצר וברור של הנושא.\n`;
             p += `- מאפייני השיח: עמדות שכיחות, טון, מחלוקת או קונצנזוס.\n`;
             p += `- תיאור המשתמשים הדומיננטיים (ללא שמות ספציפיים — רק פרופיל: מומחה, צרכן רגיל, עיתונאי וכד').\n`;
             p += `- אינדיקציה לחשיבות הנושא בשיח הכולל.\n`;
-            p += `- השלכה עסקית / תפעולית רלוונטית (מותאמת לקהל היעד).\n\n`;
+            p += `- השלכה עסקית / תפעולית רלוונטית (מותאמת לקהל היעד).\n`;
+            p += `- ציטוט ישיר אחד מייצג: בחר ציטוט קצר ואותנטי מהתוכן המסונן שמדגים את הטון הדומיננטי של הנושא.\n`;
+            p += `  הציטוט יוצג כ-blockquote מעוצב בתוך הכרטיסייה, עם שם/כינוי הכותב אם זמין.\n`;
+            p += `  אסור להמציא ציטוטים — רק מתוך הנתונים בפועל.\n\n`;
 
             p += `========================\nשלב ${sStep.links}: הפניות לתוכן תומך\n========================\n`;
             p += `בסוף כל פסקת נושא הוסף: "דוגמאות לתוכן מייצג:"\n`;
@@ -1492,7 +1500,7 @@
             p += `1. Badge סטטוס (מצב עריכה / קריאה בלבד)\n`;
             p += `2. כותרת הדו"ח + מטה-דאטה (תאריך, נושא, קהל יעד)\n`;
             p += `3. תקציר מנהלים\n`;
-            p += `4. נושאים מרכזיים (כרטיסיות) + גרפי התפלגות + badge סנטימנט\n`;
+            p += `4. נושאים מרכזיים (כרטיסיות) + גרפי התפלגות + badge סנטימנט + blockquote ציטוט\n`;
             p += `5. נושאים שוליים\n`;
             p += `6. כפתורי יצוא (fixed)\n\n`;
             p += `עיצוב:\n`;
